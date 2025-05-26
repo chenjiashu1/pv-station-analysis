@@ -2,14 +2,35 @@ import os
 
 import dashscope
 
-DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://root:root@localhost/pv_station')
-# API_KEY = os.getenv('API_KEY', 'your_api_key_here')
+# ================db========================
+# 数据库配置
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 3306,
+    'user': 'root',
+    'password': 'root',
+    'database': 'pv_station_analysis'
+}
 
-ALI_ACCESS_KEY = "sk-77e9f67bb6454269a7b695b3a7f226d6"
+DATABASE_URI = os.getenv('DATABASE_URI',
+                         f"mysql+pymysql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+                         )
+# 'mysql+pymysql://root:root@localhost/pv_station_analysis'
 
-GAODE_ACCESS_KEY ="a27fb67760d05b94310381ebf65cfb5f"
+# ================llm========================
 
+
+SELF_ALI_ACCESS_KEY = "sk-77e9f67bb6454269a7b695b3a7f226d6"
+COMPANY_ALI_ACCESS_KEY = "sk-ad510e9560454dcc977de24bc3fac065"
+ALI_ACCESS_KEY = COMPANY_ALI_ACCESS_KEY
 dashscope.api_key = ALI_ACCESS_KEY
+
+# ================gaode========================
+
+
+GAODE_ACCESS_KEY = "a27fb67760d05b94310381ebf65cfb5f"
+
+# ================dify========================
 
 
 DIFY_BASE_URL = "http://localhost"

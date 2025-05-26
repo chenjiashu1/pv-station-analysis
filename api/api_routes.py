@@ -4,7 +4,6 @@ import os
 
 from flask_cors import CORS
 
-
 from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl
 
 app = Flask(__name__)
@@ -14,7 +13,8 @@ CORS(app)  # 全局启用跨域支持
 def test():
     return jsonify("test")
 
-@app.route('/open_capacity/nan_fang_crawl')
+
+@app.route('/open_capacity/nan_fang_crawl', methods=['POST'])
 def open_capacity_nan_fang_crawl_api():
     return open_capacity_nan_fang_crawl()
 

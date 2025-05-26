@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 engine = create_engine(DATABASE_URI)
+
 Session = sessionmaker(bind=engine)
 session = Session()
 # 创建基类

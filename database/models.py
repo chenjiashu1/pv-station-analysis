@@ -1,8 +1,63 @@
 from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, Float
 from sqlalchemy.sql import func
-from .db_connection import Base
+from .db_connection import Base, session
 from sqlalchemy import Column, Integer, String, DateTime, DECIMAL
 from flask import jsonify
+from datetime import datetime
+
+
+# 定义open_capacity表
+class open_capacity(Base):
+    __tablename__ = 'open_capacity'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provinceName = Column(String(255))
+    cityName = Column(String(255))
+    countyName = Column(String(255))
+    year = Column(String(255))
+    month = Column(String(255))
+    substationName = Column(String(255))
+    pv_type = Column(String(255))
+    v = Column(String(255))
+    master_change_count = Column(String(255))
+    master_change_capacity = Column(String(255))
+    open_capacity = Column(String(255))
+    url_fingerprint = Column(String(255))
+    create_time = Column(String(255))
+
+
+def save_open_capacity(data):
+    """将数据保存到数据库"""
+    try:
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        values = []
+        for item in data:
+            values.append(
+                open_capacity(
+                    provinceName=item['provinceName'],
+                    cityName=item['cityName'],
+                    countyName=item['countyName'],
+                    year=item['year'],
+                    month=item['month'],
+                    substationName=item['substationName'],
+                    pv_type=item['pv_type'],
+                    v=item['v'],
+                    master_change_count=item['master_change_count'],
+                    master_change_capacity=item['master_change_capacity'],
+                    open_capacity=item['open_capacity'],
+                    url_fingerprint=item['url_fingerprint'],
+                    create_time=current_time
+                )
+            )
+        session.addAll(values)
+        session.commit()
+        return jsonify({"message": "Operation log inserted successfully"}), 201
+    except Exception as e:
+        session.rollback()  # 发生异常时回滚
+        return jsonify({"error": str(e)}), 500201
+
+
+def save_url_fingerprint(url_fingerprint):
+    """todo cjs"""
 
 class PowerStationInfo(Base):
     __tablename__ = 'power_station_info'
@@ -36,6 +91,7 @@ class PowerStationInfo(Base):
             'max_support_wind_power': self.max_support_wind_power
         }
 
+
 class OrderOperationLog(Base):
     __tablename__ = 'order_operation_log'
 
@@ -57,6 +113,7 @@ class OrderOperationLog(Base):
             'ai_remark': self.ai_remark,
             'operation_time': self.operation_time
         }
+
 
 class PvStationDailyMonitor(Base):
     __tablename__ = 'pv_station_daily_monitor'
@@ -91,6 +148,8 @@ class PvStationDailyMonitor(Base):
             'theoretical_power': float(self.theoretical_power) if self.theoretical_power else None,
             'system_efficiency': float(self.system_efficiency) if self.system_efficiency else None
         }
+
+
 def PvStationDailyMonitor_to_string(order_monitor):
     """
     将单个 order_daily_monitor 对象/字典转为带中文备注的字符串
@@ -108,6 +167,7 @@ def PvStationDailyMonitor_to_string(order_monitor):
         f"实际发电量 (kWh): {order_monitor.power_generation} kWh\n"
         f"理论发电量 (kWh): {order_monitor.theoretical_power} kWh"
     )
+
 
 # 如果是多个数据，可以遍历处理
 def list_to_string(order_daily_monitors):

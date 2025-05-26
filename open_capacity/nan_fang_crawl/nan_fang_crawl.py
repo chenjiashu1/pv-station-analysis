@@ -4,44 +4,10 @@ from bs4 import BeautifulSoup
 import re
 import os
 import hashlib
-from datetime import datetime
 import pandas as pd
-from sqlalchemy import create_engine, Table, Column, String, Integer, Float, MetaData
 
-# 数据库配置
-DB_CONFIG = {
-    'host': 'localhost',
-    'port': 3306,
-    'user': 'root',
-    'password': 'password',
-    'database': 'pv_station'
-}
-
-# 创建数据库引擎
-engine = create_engine(f"mysql+pymysql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
-metadata = MetaData()
-
-# 定义open_capacity表
-open_capacity = Table(
-    'open_capacity', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('provinceName', String(255)),
-    Column('cityName', String(255)),
-    Column('countyName', String(255)),
-    Column('year', String(255)),
-    Column('month', String(255)),
-    Column('substationName', String(255)),
-    Column('pv_type', String(255)),
-    Column('v', String(255)),
-    Column('master_change_count', String(255)),
-    Column('master_change_capacity', String(255)),
-    Column('open_capacity', String(255)),
-    Column('url_fingerprint', String(255)),
-    Column('create_time', String(255))
-)
-
-# 创建数据表（如果不存在）
-metadata.create_all(engine)
+from database.db_connection import engine
+from database.models import save_open_capacity, save_url_fingerprint
 
 # 存储下载文件的目录
 DOWNLOAD_DIR = 'downloads'
@@ -263,39 +229,7 @@ def parse_document(filepath):
         return []
 
 
-def save_to_database(data, url_fingerprint):
-    """将数据保存到数据库"""
-    try:
-        # 插入数据
-        with engine.connect() as conn:
-            values = []
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            for item in data:
-                values.append({
-                    'provinceName': item['provinceName'],
-                    'cityName': item['cityName'],
-                    'countyName': item['countyName'],
-                    'year': item['year'],
-                    'month': item['month'],
-                    'substationName': item['substationName'],
-                    'pv_type': item['pv_type'],
-                    'v': item['v'],
-                    'master_change_count': item['master_change_count'],
-                    'master_change_capacity': item['master_change_capacity'],
-                    'open_capacity': item['open_capacity'],
-                    'url_fingerprint': url_fingerprint,
-                    'create_time': current_time
-                })
-            
-            if values:
-                conn.execute(open_capacity.insert(), values)
-                conn.commit()
-                print(f"成功插入{len(values)}条数据")
-    except Exception as e:
-        print(f"保存到数据库时发生错误: {str(e)}")
-
-
-def main():
+def open_capacity_nan_fang_crawl():
     """主函数"""
     try:
         # 获取HTML链接
@@ -352,12 +286,12 @@ def main():
                 batch_size = 50
                 for i in range(0, len(parsed_data), batch_size):
                     batch_data = parsed_data[i:i+batch_size]
-                    save_to_database(batch_data, url_fingerprint)
+                    save_open_capacity(batch_data)
+                save_url_fingerprint(url_fingerprint)
+
             
         print("数据处理完成")
+        return "数据处理完成"
     except Exception as e:
         print(f"主程序运行时发生错误: {str(e)}")
-
-
-if __name__ == '__main__':
-    main()
+        return "数据处理失败"
