@@ -8,6 +8,7 @@ import pandas as pd
 
 from database.db_connection import engine
 from database.models import save_open_capacity, save_url_fingerprint
+from urllib.parse import urlparse, parse_qs
 
 # 存储下载文件的目录
 DOWNLOAD_DIR = 'downloads'
@@ -43,7 +44,8 @@ def get_html_links():
                 item["link"] for item in result["data"]["infoList"]
                 if "月分布式光伏" in item.get("infoTitle", "") and item["link"].endswith((".html", ".htm"))
             ]
-            print(f"调用接口获取可开放容量html链接资源如下: {html_links}")
+            print(f"one===调用接口获取可开放容量html链接资源{len(html_links)}个如下: {html_links}")
+
             return html_links
         else:
             print(f"接口请求失败: {result['message']}")
@@ -51,12 +53,24 @@ def get_html_links():
     except Exception as e:
         print(f"获取HTML链接时发生错误: {str(e)}")
         return []
-
+def get_document_type_from_url(url):
+    parsed_url = urlparse(url)
+    query_params = parse_qs(parsed_url.query)
+    # 获取 'documentType' 参数的值列表，默认返回空列表
+    document_types = query_params.get('documentType', [])
+    # 返回第一个值（如果存在），否则返回 None
+    return document_types[0] if document_types else None
 
 def extract_download_links(html_url):
     """从HTML页面中提取所有文档下载链接"""
     try:
-        response = requests.get(html_url, timeout=30)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.97",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Referer": "https://www.google.com/"
+        }
+        response = requests.get(html_url, headers=headers, timeout=30)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
@@ -67,29 +81,37 @@ def extract_download_links(html_url):
         download_links = []
         
         # 常见文档类型的正则表达式模式
+        # doc_patterns = {
+        #     'pdf': r'\.pdf$|\/PDF',
+        #     'excel': r'\.xls$|\.xlsx$|\/XLSX?|$$Excel',
+        #     'doc': r'\.doc$|\.docx$|\/DOCX?|$$Word'
+        # }
+
         doc_patterns = {
-            'pdf': r'\.pdf$|\/PDF',
-            'excel': r'\.xls$|\.xlsx$|\/XLSX?|$$Excel',
-            'doc': r'\.doc$|\.docx$|\/DOCX?|$$Word'
+            'pdf': "pdf|PDF",
+            'excel': "xls|xlsx|XLSX|Excel",
+            'doc': "doc|docx|DOCX|Word"
         }
-        
-        # 检查每个链接是否匹配文档类型
+        # 检查每个链接是否匹配支持的文档类型
         for link in links:
-            href = link['href'].lower()
-            for doc_type, pattern in doc_patterns.items():
-                if re.search(pattern, href):
+            href = link['href']
+            # 获取文件扩展名并匹配支持的类型
+            supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel", "doc": "doc", "docx": "doc", "Word": "doc"}
+            document_type = get_document_type_from_url(href)
+            for doc_type, pattern in supported_types.items():
+                if doc_type == document_type:
                     # 如果是相对路径，补全URL
                     if href.startswith('/'):
                         from urllib.parse import urljoin
                         full_url = urljoin(html_url, href)
                     else:
                         full_url = href
-                    
-                    # 添加到下载链接列表
-                    download_links.append(full_url)
+
+                        # 添加到下载链接列表
+                        download_links.append(full_url)
         
         if not download_links:
-            print(f"在{html_url}中未找到文档下载链接")
+            print(f"在: {html_url} 中未找到文档下载链接")
         print(f"提取到如下下载链接： {html_url}")
         return download_links
     except Exception as e:
@@ -108,9 +130,15 @@ def download_document(url, document_type):
         if any(url_fingerprint in f for f in existing_files):
             print(f"文档已下载过: {url}")
             return None, url_fingerprint
-        
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.97",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Referer": "https://www.google.com/"
+        }
         # 下载文档
-        response = requests.get(url, stream=True, timeout=60)
+        response = requests.get(url, headers=headers, stream=True, timeout=60)
         response.raise_for_status()
         
         # 根据文档类型设置文件扩展名
@@ -237,61 +265,65 @@ def open_capacity_nan_fang_crawl():
         if not html_links:
             print("没有找到符合条件的HTML链接")
             return
-        
-        print(f"找到{len(html_links)}个HTML链接")
-        
-        # 处理每个HTML链接
-        for html_url in html_links:
-            print(f"处理链接: {html_url}")
-            
-            # 提取文档下载链接
-            download_urls = extract_download_links(html_url)
 
-            if not download_urls:
-                print(f"无法从{html_url}提取下载链接")
-                continue
-            
-            print(f"找到{len(download_urls)}个下载链接: {', '.join(download_urls)}")
-            download_urls = [download_urls[0]]
-            # 处理每个下载链接
-            for download_url in download_urls:
-                # 判断文档类型
-                if download_url.lower().endswith('.pdf'):
-                    document_type = 'pdf'
-                elif download_url.lower().endswith(('.xls', '.xlsx')):
-                    document_type = 'excel'
-                elif download_url.lower().endswith(('.doc', '.docx')):
-                    document_type = 'doc'
-                else:
-                    print(f"不支持的文档类型: {download_url}")
-                    continue
-                
-                print(f"处理下载链接: {download_url}")
-            
-                # 下载文档
-                filepath, url_fingerprint = download_document(download_url, document_type)
-                if not filepath:
-                    print(f"下载文档失败: {download_url}")
-                    continue
-                
-                # 解析文档
-                parsed_data = parse_document(filepath)
-                if not parsed_data:
-                    print(f"解析文档失败: {filepath}")
-                    continue
-                
-                print(f"成功解析{len(parsed_data)}条数据")
-                
-                # 每50行数据插入一次数据库
-                batch_size = 50
-                for i in range(0, len(parsed_data), batch_size):
-                    batch_data = parsed_data[i:i+batch_size]
-                    save_open_capacity(batch_data)
-                save_url_fingerprint(url_fingerprint)
+        all_download_urls = batch_extract_download_links(html_links)
 
+        download_to_db(all_download_urls)
             
-        print("数据处理完成")
         return "数据处理完成"
     except Exception as e:
         print(f"主程序运行时发生错误: {str(e)}")
         return "数据处理失败"
+
+def download_to_db(all_download_urls):
+    if all_download_urls:
+        # todo cjs
+        all_download_urls = [all_download_urls[0]]
+        # 处理每个下载链接
+        for download_url in all_download_urls:
+            document_type = get_document_type_from_url(download_url)
+            if document_type is None:
+                print(f"不支持的文档类型: {download_url}")
+                continue
+
+            print(f"处理下载链接: {download_url}")
+
+            # 下载文档
+            filepath, url_fingerprint = download_document(download_url, document_type)
+            if not filepath:
+                print(f"下载文档失败: {download_url}")
+                continue
+
+            # 解析文档
+            parsed_data = parse_document(filepath)
+            if not parsed_data:
+                print(f"解析文档失败: {filepath}")
+                continue
+
+            print(f"three====成功解析{len(parsed_data)}条数据")
+
+            # 每50行数据插入一次数据库
+            batch_size = 50
+            for i in range(0, len(parsed_data), batch_size):
+                batch_data = parsed_data[i:i + batch_size]
+                save_open_capacity(batch_data)
+            save_url_fingerprint(url_fingerprint)
+        print(f"three====数据解析并落库完成")
+
+def batch_extract_download_links(html_links):
+    # 处理每个HTML链接
+    all_download_urls = []
+    for html_url in html_links:
+        print(f"处理链接: {html_url}")
+
+        # 提取文档下载链接
+        download_urls = extract_download_links(html_url)
+
+        if not download_urls:
+            print(f"无法从{html_url}提取下载链接")
+            continue
+        print(f"链接中有{len(download_urls)}个下载链接")
+        all_download_urls = all_download_urls + download_urls
+    print(f"two====总共找到{len(all_download_urls)}个下载链接: {', '.join(all_download_urls)}")
+    return all_download_urls
+
