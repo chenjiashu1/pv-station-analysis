@@ -22,7 +22,7 @@ DATABASE_URI = os.getenv('DATABASE_URI',
 
 SELF_ALI_ACCESS_KEY = "sk-77e9f67bb6454269a7b695b3a7f226d6"
 COMPANY_ALI_ACCESS_KEY = "sk-ad510e9560454dcc977de24bc3fac065"
-ALI_ACCESS_KEY = COMPANY_ALI_ACCESS_KEY
+ALI_ACCESS_KEY = SELF_ALI_ACCESS_KEY
 dashscope.api_key = ALI_ACCESS_KEY
 
 # ================gaode========================

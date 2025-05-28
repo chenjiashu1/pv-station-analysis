@@ -1,19 +1,13 @@
 import requests
 import json
 from bs4 import BeautifulSoup
-import re
-import os
-import hashlib
-import pandas as pd
 
-from database.db_connection import engine
-from database.models import save_open_capacity, save_url_fingerprint
+from database.models import insert_open_capacity, insert_SourceInfo, find_not_db_SourceInfo
 from urllib.parse import urlparse, parse_qs
 
-# 存储下载文件的目录
-DOWNLOAD_DIR = 'downloads'
-if not os.path.exists(DOWNLOAD_DIR):
-    os.makedirs(DOWNLOAD_DIR)
+from utils.aiUtil import ai_parse_document
+from utils.codeUtil import get_url_fingerprint_code
+from utils.fileUtil import uploadToHuaweiyunOssBySource_url, download_oss_file
 
 
 def get_html_links():
@@ -32,12 +26,12 @@ def get_html_links():
         "version": "cn",
         "keyword": "可开放容量信息"
     }
-    
+
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data))
         response.raise_for_status()
         result = response.json()
-        
+
         if result["sta"] == "00":
             # 过滤包含"月分布式光伏"内容的所有link中的html链接
             html_links = [
@@ -53,6 +47,8 @@ def get_html_links():
     except Exception as e:
         print(f"获取HTML链接时发生错误: {str(e)}")
         return []
+
+
 def get_document_type_from_url(url):
     parsed_url = urlparse(url)
     query_params = parse_qs(parsed_url.query)
@@ -60,6 +56,7 @@ def get_document_type_from_url(url):
     document_types = query_params.get('documentType', [])
     # 返回第一个值（如果存在），否则返回 None
     return document_types[0] if document_types else None
+
 
 def extract_download_links(html_url):
     """从HTML页面中提取所有文档下载链接"""
@@ -73,13 +70,13 @@ def extract_download_links(html_url):
         response = requests.get(html_url, headers=headers, timeout=30)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         # 查找所有可能包含下载链接的a标签
         links = soup.find_all('a', href=True)
-        
+
         # 存储找到的所有下载链接
         download_links = []
-        
+
         # 常见文档类型的正则表达式模式
         # doc_patterns = {
         #     'pdf': r'\.pdf$|\/PDF',
@@ -96,7 +93,7 @@ def extract_download_links(html_url):
         for link in links:
             href = link['href']
             # 获取文件扩展名并匹配支持的类型
-            supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel", "doc": "doc", "docx": "doc", "Word": "doc"}
+            supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel"}
             document_type = get_document_type_from_url(href)
             for doc_type, pattern in supported_types.items():
                 if doc_type == document_type:
@@ -109,151 +106,13 @@ def extract_download_links(html_url):
 
                         # 添加到下载链接列表
                         download_links.append(full_url)
-        
+
         if not download_links:
             print(f"在: {html_url} 中未找到文档下载链接")
         print(f"提取到如下下载链接： {html_url}")
         return download_links
     except Exception as e:
         print(f"提取下载链接时发生错误({html_url}): {str(e)}")
-        return []
-
-
-def download_document(url, document_type):
-    """下载文档并保存到本地"""
-    try:
-        # 生成URL指纹
-        url_fingerprint = hashlib.md5(url.encode()).hexdigest()
-        
-        # 检查是否已经下载过该文档
-        existing_files = os.listdir(DOWNLOAD_DIR)
-        if any(url_fingerprint in f for f in existing_files):
-            print(f"文档已下载过: {url}")
-            return None, url_fingerprint
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.2151.97",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "Referer": "https://www.google.com/"
-        }
-        # 下载文档
-        response = requests.get(url, headers=headers, stream=True, timeout=60)
-        response.raise_for_status()
-        
-        # 根据文档类型设置文件扩展名
-        file_extension = {
-            'pdf': '.pdf',
-            'excel': '.xlsx',
-            'doc': '.docx'
-        }.get(document_type, '')
-        
-        # 生成文件名
-        filename = f"{url_fingerprint}{file_extension}"
-        filepath = os.path.join(DOWNLOAD_DIR, filename)
-        
-        # 写入文件
-        with open(filepath, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-        
-        print(f"文档下载成功: {url} -> {filename}")
-        return filepath, url_fingerprint
-    except Exception as e:
-        print(f"下载文档时发生错误: {str(e)}")
-        return None, url_fingerprint
-
-
-def parse_document(filepath):
-    """解析文档并返回数据列表"""
-    try:
-        # 获取文件扩展名
-        _, ext = os.path.splitext(filepath)
-        ext = ext.lower()
-        
-        # 解析不同类型的文档
-        if ext == '.pdf':
-            # PDF解析实现
-            import PyPDF2
-            with open(filepath, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                text = ""
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-                # 这里需要根据实际PDF格式实现具体解析逻辑
-                # 示例：假设文本中有类似"晋宁区2024年8月变电站名称分布式电压等级(kw)主变数量主变容量(MVA)可开放容(MW)"的数据
-                pattern = r'(.*?)\\s*(2024年)\\s*(8月)\\s*(.*?)\\s*Distributed\\s*(.*?)\\s*(\\d+)\\s*(.*?)\\s*(.*?)'
-                matches = re.findall(pattern, text)
-                
-                # 将匹配结果转换为指定格式
-                parsed_data = [{
-                    "provinceName": "云南省",
-                    "cityName": "昆明市",
-                    "countyName": match[0],
-                    "year": match[1],
-                    "month": match[2],
-                    "substationName": match[3],
-                    "pv_type": "分布式",
-                    "v": match[4],
-                    "master_change_count": match[5],
-                    "master_change_capacity": match[6],
-                    "open_capacity": match[7]
-                } for match in matches]
-                
-                return parsed_data
-        elif ext in ['.xls', '.xlsx']:
-            # Excel解析实现
-            df = pd.read_excel(filepath)
-            # 这里需要根据实际Excel格式实现具体解析逻辑
-            # 示例：假设Excel有列：县区、年份、月份、变电站名称、光伏类型、电压等级(kw)、主变数量、主变容量(MVA)、可开放容(MW)
-            parsed_data = []
-            for _, row in df.iterrows():
-                parsed_data.append({
-                    "provinceName": "云南省",
-                    "cityName": "昆明市",
-                    "countyName": row.get('县区', ''),
-                    "year": row.get('年份', ''),
-                    "month": row.get('月份', ''),
-                    "substationName": row.get('变电站名称', ''),
-                    "pv_type": row.get('光伏类型', ''),
-                    "v": str(row.get('电压等级(kw)', '')),
-                    "master_change_count": str(row.get('主变数量', '')),
-                    "master_change_capacity": str(row.get('主变容量(MVA)', '')),
-                    "open_capacity": str(row.get('可开放容(MW)', ''))
-                })
-            return parsed_data
-        elif ext in ['.doc', '.docx']:
-            # Word文档解析实现
-            from docx import Document
-            doc = Document(filepath)
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-            # 这里需要根据实际Word格式实现具体解析逻辑
-            # 示例：假设文本中有类似"晋宁区2024年8月变电站名称分布式电压等级(kw)主变数量主变容量(MVA)可开放容(MW)"的数据
-            pattern = r'(.*?)\\s*(2024年)\\s*(8月)\\s*(.*?)\\s*Distributed\\s*(.*?)\\s*(\\d+)\\s*(.*?)\\s*(.*?)'
-            matches = re.findall(pattern, text)
-            
-            # 将匹配结果转换为指定格式
-            parsed_data = [{
-                "provinceName": "云南省",
-                "cityName": "昆明市",
-                "countyName": match[0],
-                "year": match[1],
-                "month": match[2],
-                "substationName": match[3],
-                "pv_type": "分布式",
-                "v": match[4],
-                "master_change_count": match[5],
-                "master_change_capacity": match[6],
-                "open_capacity": match[7]
-            } for match in matches]
-            
-            return parsed_data
-        else:
-            print(f"不支持的文档类型: {ext}")
-            return []
-    except Exception as e:
-        print(f"解析文档时发生错误: {str(e)}")
         return []
 
 
@@ -268,47 +127,59 @@ def open_capacity_nan_fang_crawl():
 
         all_download_urls = batch_extract_download_links(html_links)
 
-        download_to_db(all_download_urls)
-            
-        return "数据处理完成"
+        return download_to_oss(all_download_urls)
     except Exception as e:
         print(f"主程序运行时发生错误: {str(e)}")
         return "数据处理失败"
 
-def download_to_db(all_download_urls):
+
+def open_capacity_nan_fang_parseToDb():
+    sourceInfos = find_not_db_SourceInfo()
+    if sourceInfos:
+        for sourceInfo in sourceInfos:
+            ai_parse_document_and_db(sourceInfo.oss_url)
+    return "南方电网可开放容量数据解析并落库完成"
+
+
+def ai_parse_document_and_db(oss_url):
+    local_file_path = download_oss_file(oss_url)
+    # 解析文档
+    parsed_data = ai_parse_document(local_file_path)
+    if not parsed_data:
+        print(f"解析文档失败: {oss_url}")
+        return ""
+
+    print(f"ai_parse_document====成功解析出{len(parsed_data)}条可开放容量的数据")
+
+    # 每50行数据插入一次数据库
+    batch_size = 50
+    for i in range(0, len(parsed_data), batch_size):
+        batch_data = parsed_data[i:i + batch_size]
+        insert_open_capacity(batch_data)
+    print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_url}")
+
+
+def download_to_oss(all_download_urls):
+    oss_urls = []
     if all_download_urls:
         # todo cjs
-        all_download_urls = [all_download_urls[0]]
+        # all_download_urls = [all_download_urls[0]]
         # 处理每个下载链接
         for download_url in all_download_urls:
+            print(f"two====开始上传文件：{download_url}到oss系统")
             document_type = get_document_type_from_url(download_url)
-            if document_type is None:
-                print(f"不支持的文档类型: {download_url}")
+            url_fingerprint_code = get_url_fingerprint_code(download_url)
+            fileName = url_fingerprint_code + "." + document_type
+            oss_url = uploadToHuaweiyunOssBySource_url(download_url, fileName)
+            if not oss_url:
+                print(f"未成功上传三方文件到oss系统: {download_url}")
                 continue
-
-            print(f"处理下载链接: {download_url}")
-
-            # 下载文档
-            filepath, url_fingerprint = download_document(download_url, document_type)
-            if not filepath:
-                print(f"下载文档失败: {download_url}")
-                continue
-
-            # 解析文档
-            parsed_data = parse_document(filepath)
-            if not parsed_data:
-                print(f"解析文档失败: {filepath}")
-                continue
-
-            print(f"three====成功解析{len(parsed_data)}条数据")
-
-            # 每50行数据插入一次数据库
-            batch_size = 50
-            for i in range(0, len(parsed_data), batch_size):
-                batch_data = parsed_data[i:i + batch_size]
-                save_open_capacity(batch_data)
-            save_url_fingerprint(url_fingerprint)
-        print(f"three====数据解析并落库完成")
+            print(f"three====上传成功，oss文件链接：{oss_url}")
+            url_fingerprint_code = insert_SourceInfo(
+                download_url, "南方电网-可开放容量", oss_url)
+            print(f"three====并记录下载指纹：{url_fingerprint_code}")
+            oss_urls.append(oss_url)
+    return oss_urls
 
 def batch_extract_download_links(html_links):
     # 处理每个HTML链接
@@ -326,4 +197,3 @@ def batch_extract_download_links(html_links):
         all_download_urls = all_download_urls + download_urls
     print(f"two====总共找到{len(all_download_urls)}个下载链接: {', '.join(all_download_urls)}")
     return all_download_urls
-
