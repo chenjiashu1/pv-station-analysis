@@ -37,3 +37,12 @@ DIFY_BASE_URL = "http://localhost"
 # DIFY_BASE_URL = "http://host.docker.internal"
 DATASET_ID = "95319f14-0a6d-438f-95cf-82f9aaca49da"  # 替换为你的知识库ID
 DIFY_KNOEWLEDGE_KEY = "dataset-rBfmZMxGAN1oQ2oveUcw9a3Q"  # 替换为你的API Key
+
+# =======================oss================
+huaweiyun_ak = "WHBM2GPU8CDWSBCEMUNX"
+huaweiyun_sk = "2nuezsQMAHwOu2wJGiaZnFqCquUlb7JD9v6HDTkd"
+huaweiyun_endpoint = "obs.cn-south-1.myhuaweicloud.com"
+huaweiyun_bucket_name = "aurora-test-obs"
+huaweiyun_object_key_prefix=  "cjs/"
+file_download_path= "D:/tempFile/downLoad"
+file_upload_path= "D:/tempFile/upload"

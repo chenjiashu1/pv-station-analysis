@@ -163,7 +163,7 @@ def download_to_oss(all_download_urls):
     oss_urls = []
     if all_download_urls:
         # todo cjs
-        # all_download_urls = [all_download_urls[0]]
+        all_download_urls = [all_download_urls[0]]
         # 处理每个下载链接
         for download_url in all_download_urls:
             print(f"two====开始上传文件：{download_url}到oss系统")

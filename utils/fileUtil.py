@@ -2,6 +2,8 @@
 # from weasyprint import HTML
 # import tempfile
 import os
+
+import oss2
 from obs import ObsClient, PutObjectHeader
 
 import pandas as pd
@@ -22,6 +24,8 @@ import pandas as pd
 import pdfkit
 import requests
 
+from config import file_download_path, huaweiyun_sk, huaweiyun_ak, huaweiyun_endpoint, huaweiyun_bucket_name, \
+    huaweiyun_object_key_prefix
 from utils.codeUtil import get_url_fingerprint_code
 
 
@@ -168,12 +172,8 @@ def uploadToHuaweiyunOssBySource_url(source_url, fileName):
     返回：
         str: 华为云OSS文件访问URL 或 None（上传失败时）
     """
-    ak = "WHBM2GPU8CDWSBCEMUNX"
-    sk = "2nuezsQMAHwOu2wJGiaZnFqCquUlb7JD9v6HDTkd"
-    endpoint = "obs.cn-south-1.myhuaweicloud.com"
-    bucket_name = "aurora-test-obs"
 
-    object_key = "cjs/" + fileName
+    object_key = huaweiyun_object_key_prefix + fileName
 
     try:
 
@@ -194,17 +194,17 @@ def uploadToHuaweiyunOssBySource_url(source_url, fileName):
 
         # 上传文件到OBS
         # 初始化OBS客户端
-        client = ObsClient(access_key_id=ak,
-                           secret_access_key=sk,
-                           server=endpoint)
-        result = client.putObject(bucket_name,
+        client = ObsClient(access_key_id=huaweiyun_ak,
+                           secret_access_key=huaweiyun_sk,
+                           server=huaweiyun_endpoint)
+        result = client.putObject(huaweiyun_bucket_name,
                                   object_key,
                                   response.raw,
                                   headers=headers)
 
         if result.status < 300:
             # 构造OSS访问URL（虚拟托管样式）
-            oss_url = f"https://{bucket_name}.{endpoint}/{object_key}"
+            oss_url = f"https://{huaweiyun_bucket_name}.{huaweiyun_endpoint}/{object_key}"
             return oss_url
         print(f"uploadToHuaweiyunOssBySource_url==={result}")
         return ""
@@ -223,7 +223,7 @@ def uploadToHuaweiyunOssBySource_url(source_url, fileName):
                 pass
 
 
-def download_oss_file(oss_url, save_path="D:/tempFile"):
+def download_oss_file(oss_url):
     """
     从 OSS URL 下载文件并保存到指定的本地路径。
 
@@ -232,11 +232,11 @@ def download_oss_file(oss_url, save_path="D:/tempFile"):
     :return: 下载后的本地文件路径
     """
     # 创建保存目录（如果不存在）
-    os.makedirs(save_path, exist_ok=True)
+    os.makedirs(file_download_path, exist_ok=True)
 
     # 获取文件名
     file_name = os.path.basename(oss_url)
-    local_file_path = os.path.join(save_path, file_name)
+    local_file_path = os.path.join(file_download_path, file_name)
 
     # 下载文件
     response = requests.get(oss_url)
@@ -248,5 +248,29 @@ def download_oss_file(oss_url, save_path="D:/tempFile"):
         raise Exception(f"下载失败，状态码：{response.status_code}")
 
 
-def uploadLocalFile(filePath):
-    return "uploadLocalFile===成功"
+def uploadLocalFileToOss(file_path, fileName):
+    """
+    Uploads a local file to Alibaba Cloud OSS.
+
+    :param file_path: Path of the file on the local system
+    :param oss_key: The key under which the file will be stored in OSS
+    :return: True if upload was successful, False otherwise
+    """
+    # 这里需要添加实际的OSS上传逻辑
+    try:
+        # 初始化OSS客户端
+        auth = oss2.Auth(huaweiyun_ak, huaweiyun_sk)
+        bucket = oss2.Bucket(auth, huaweiyun_endpoint, huaweiyun_bucket_name)
+        object_key = huaweiyun_object_key_prefix + fileName
+
+        # 上传文件
+        result = bucket.upload_file(object_key, file_path)
+
+        # 检查上传结果
+        if result.status == 200:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f'Upload failed: {e}')
+        return False

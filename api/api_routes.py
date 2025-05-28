@@ -7,21 +7,22 @@ from flask_cors import CORS
 from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl, open_capacity_nan_fang_parseToDb, \
     ai_parse_document_and_db
 from utils.aiUtil import ai_parse_document
-from utils.fileUtil import uploadToHuaweiyunOssBySource_url, uploadLocalFile
+from utils.fileUtil import uploadToHuaweiyunOssBySource_url, uploadLocalFileToOss
 
 app = Flask(__name__)
 CORS(app)  # 全局启用跨域支持
 
-@app.route('/common/test/uploadLocalFile_api', methods=['POST'])
-def uploadLocalFile_api():
-    input = request.get_json().get('input')
-    filePath = input.get("filePath")
-    uploadLocalFile(filePath)
+
 
 @app.route('/test')
 def test():
     return jsonify("test")
-
+@app.route('/common/uploadLocalFile_api', methods=['POST'])
+def uploadLocalFile_api():
+    input = request.get_json().get('input')
+    filePath = input.get("filePath")
+    fileName = input.get("fileName")
+    uploadLocalFileToOss(filePath, fileName)
 # 爬南方电网文件
 @app.route('/open_capacity/nan_fang_crawl_api', methods=['POST'])
 def open_capacity_nan_fang_crawl_api():
