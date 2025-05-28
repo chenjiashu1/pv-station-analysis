@@ -2,11 +2,9 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sqlalchemy import Column, Integer, String, TIMESTAMP, func, Index
 from sqlalchemy import Text
 from datetime import datetime
 
-from flask import jsonify
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import TIMESTAMP, func, Index
 
@@ -166,6 +164,7 @@ class AIAnalysisRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     scene = Column(String(255), nullable=False)  # 场景
     user_request = Column(Text, nullable=False)  # 用户要求
+    sql_query = Column(Text, nullable=False)
     oss_url = Column(String(1023))  # HTML文件OSS地址
     create_time = Column(TIMESTAMP, default=func.current_timestamp())  # 创建时间
 
@@ -177,7 +176,22 @@ class AIAnalysisRecord(Base):
             'oss_url': self.oss_url,
             'create_time': self.create_time
         }
-
+def insert_ai_analysis_record(scene, user_request, sql_query, html_url):
+    try:
+        new_source = AIAnalysisRecord(
+            scene=scene,
+            user_request=user_request,
+            sql_query=sql_query,
+            oss_url=html_url,
+            create_time=datetime.now()
+        )
+        session.add(new_source)
+        session.commit()
+        print(f"insert_analysis_record===成功")
+        return "insert_analysis_record===成功"
+    except Exception as e:
+        session.rollback()
+        raise e
 #
 #
 # class PowerStationInfo(Base):

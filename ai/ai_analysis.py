@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 
 from utils.aiUtil import call_deepseek
 
-from database.models import table_structure_map, execute_sql, table_name_map
+from database.models import table_structure_map, execute_sql, table_name_map, insert_ai_analysis_record
 from utils.fileUtil import upload_content_to_oss
 
 
@@ -16,12 +16,13 @@ def ai_sql_analysis(scene, user_request):
         return jsonify({"error": "Invalid scene"}), 400
     generalSqlPrompt = f"""
     请根据以下信息生成SQL查询语句：
-    
+
     - 需要生成SQL的用户问题：{user_request}
     - 数据库表结构：{table_structure}
     - Text-to-SQL任务说明：根据用户问题和数据库表结构，返回一个SQL查询语句。
     - 要求输出：仅返回有效的SQL语句，不要包含其他解释内容。
     - 输出结果不能包含```sql和```
+    - 遵循sql_mode为ONLY_FULL_GROUP_BY的模式
     """
 
     print(f"ai_sql_analysis-generalSqlPrompt===={generalSqlPrompt}")
@@ -36,11 +37,11 @@ def ai_sql_analysis(scene, user_request):
     ai_sql_analysis_prompt = f"""
     # 您是专业的数据分析专家
     # 请分析以下数据：{query_result}，着重关注：{table_name}
-    # 以美观的HTML表格形式展示
-        ## 要求：
-        - 使用简洁清晰的表格布局
+    # 要求
+        - 使用简洁清晰美观的图形和表格的方式呈现
         - 包含中文标题和单位
-        - 不需要 JavaScript 或复杂样式
+        - 以HTML格式输出结果。
+        - 输出结果仅返回有效的html内容，不要包含其他解释内容，不能包含```html和```
     """
     print(f"ai_sql_analysis-ai_sql_analysis_prompt===={ai_sql_analysis_prompt}")
     html_content = call_deepseek(ai_sql_analysis_prompt)
@@ -52,5 +53,5 @@ def ai_sql_analysis(scene, user_request):
     print(f"ai_sql_analysis-html_url===={html_url}")
 
     # 6. 记录分析结果到数据库
-    # save_analysis_record(scene, user_request, html_url)
+    insert_ai_analysis_record(scene, user_request, sql_query, html_url)
     return jsonify({"html_url": html_url})
