@@ -278,3 +278,38 @@ def uploadLocalFileToOss(file_path, fileName):
     except Exception as e:
         print(f'uploadLocalFileToOss-failed: {e}')
         return ("上传oss未成功")
+
+def upload_content_to_oss(html_content, fileName):
+    """
+        Uploads a local file to Alibaba Cloud OSS.
+
+        :param file_path: Path of the file on the local system
+        :param oss_key: The key under which the file will be stored in OSS
+        :return: True if upload was successful, False otherwise
+        """
+    # 这里需要添加实际的OSS上传逻辑
+    try:
+        putObjectHeader = PutObjectHeader()
+        putObjectHeader.contentType = 'application/octet-stream'
+        putObjectHeader.acl = 'public-read'  # 设置对象为公共读
+        # 初始化OSS客户端
+        # auth = oss2.Auth(huaweiyun_ak, huaweiyun_sk)
+        # bucket = oss2.Bucket(auth, huaweiyun_endpoint, huaweiyun_bucket_name)
+        object_key = huaweiyun_object_key_prefix + fileName
+        #
+        # # 上传文件
+        # result = bucket.upload_file(object_key, file_path)
+        result = obsClient.putContent(huaweiyun_bucket_name,
+                                   object_key,
+                                   html_content,
+                                   headers=putObjectHeader)
+        print(f'upload_content_to_oss-result: {result}')
+        # 检查上传结果
+        if result.status == 200:
+            return result.body.objectUrl
+        else:
+            return ("上传oss未成功")
+    except Exception as e:
+        print(f'upload_content_to_oss-failed: {e}')
+        return ("上传oss未成功")
+

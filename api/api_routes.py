@@ -4,6 +4,7 @@ import os
 
 from flask_cors import CORS
 
+from ai.ai_analysis import ai_sql_analysis
 from database.models import insert_open_capacity
 from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl, open_capacity_nan_fang_parseToDb, \
     ai_parse_document_and_db
@@ -13,11 +14,16 @@ from utils.fileUtil import uploadToHuaweiyunOssBySource_url, uploadLocalFileToOs
 app = Flask(__name__)
 CORS(app)  # 全局启用跨域支持
 
-
-
 @app.route('/test')
 def test():
     return jsonify("test")
+# ai语义化sql分析
+@app.route('/common/ai_sql_analysis_api', methods=['POST'])
+def ai_sql_analysis_api():
+    input = request.get_json().get('input')
+    scene = input.get('scene')
+    user_request = input.get('user_request')
+    return ai_sql_analysis(scene, user_request)
 @app.route('/common/uploadLocalFile_api', methods=['POST'])
 def uploadLocalFile_api():
     input = request.get_json().get('input')

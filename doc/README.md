@@ -20,8 +20,20 @@
   * 并对文档进行解析，生成格式为:{"list":[{"provinceName":"云南省","cityName":"昆明市","countyName":"晋宁区","year":"2024年","month":"8月","substationName":"变电站名称","pv_type":"分布式","v":"电压等级(kw)","master_change_count":"主变数量","master_change_capacity":"主变容量(MVA)","open_capacity":"可开放容(MW)"}]}的数据
   * 每50行数据通过sqlalchemy进行插入到表open_capacity操作
 
-## 电站分析前端服务
+### 电站分析前端服务
+ * 可开放容量列表查询界面
+ * 用户自定义AI分析功能
+ * 展示AI分析记录表
 
-### 电网AI分析
- * 接入可视化面板
- * 
+### 电网AI分析切入点
+ * 用户自定义AI分析功能接口
+  * 入参：场景（值默认为"可开放容量"）、用户要求
+  * 出参：html格式的界面
+  * 逻辑：
+   * 根据场景匹配到具体的表结构
+   * 将用户要求和表结构信息拼接到prompt中，prompt包含如下内容：Text-to-SQL任务的说明、数据库表结构信息、用户问题相关的领域知识、提示或其他约束条件、需要生成SQL的用户问题
+   * 根据prompt调用call_deepseek()方法生成查询的sql
+   * 执行sql，接收sql的查询结果
+   * 将查询结果组成prompt2，调用call_deepseek()方法生成html格式的文件
+   * 将html文件上传到oss系统中，并返回oss的url
+   * 将oss的url、场景、用户要求、创建时间都记录在AI分析记录表中

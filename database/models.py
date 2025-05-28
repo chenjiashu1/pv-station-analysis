@@ -1,3 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from sqlalchemy import Column, Integer, String, TIMESTAMP, func, Index
+from sqlalchemy import Text
 from datetime import datetime
 
 from flask import jsonify
@@ -6,8 +12,16 @@ from sqlalchemy import TIMESTAMP, func, Index
 
 from utils.codeUtil import get_url_fingerprint_code
 from .db_connection import Base, session
+from sqlalchemy import text
 
 
+open_capacity_table_structure = "open_capacity (id, provinceName, cityName, countyName, year, month, substationName, pv_type, v, master_change_count, master_change_capacity, open_capacity, create_time)"
+table_structure_map = {"open_capacity":  open_capacity_table_structure}
+table_name_map = {"open_capacity":  "可开放容量"}
+
+def execute_sql(sql):
+    result = session.execute(text(sql))
+    return result.mappings().all()
 # 定义open_capacity表
 class open_capacity(Base):
     __tablename__ = 'open_capacity'
@@ -144,6 +158,25 @@ def insert_SourceInfo(source_url, source_type, oss_url):
     except Exception as e:
         session.rollback()
         raise e
+
+
+class AIAnalysisRecord(Base):
+    __tablename__ = 'ai_analysis_record'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scene = Column(String(255), nullable=False)  # 场景
+    user_request = Column(Text, nullable=False)  # 用户要求
+    oss_url = Column(String(1023))  # HTML文件OSS地址
+    create_time = Column(TIMESTAMP, default=func.current_timestamp())  # 创建时间
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'scene': self.scene,
+            'user_request': self.user_request,
+            'oss_url': self.oss_url,
+            'create_time': self.create_time
+        }
 
 #
 #
