@@ -2,7 +2,8 @@ import requests
 import json
 from bs4 import BeautifulSoup
 
-from database.models import insert_open_capacity, insert_SourceInfo, find_not_db_SourceInfo
+from database.models import insert_open_capacity, insert_SourceInfo, find_not_db_SourceInfo, exist_url_fingerprint_code, \
+    update_SourceInfo_toDb
 from urllib.parse import urlparse, parse_qs
 
 from utils.aiUtil import ai_parse_document
@@ -103,9 +104,12 @@ def extract_download_links(html_url):
                         full_url = urljoin(html_url, href)
                     else:
                         full_url = href
-
+                    url_fingerprint_code  = get_url_fingerprint_code(full_url)
+                    if not exist_url_fingerprint_code(url_fingerprint_code):
                         # 添加到下载链接列表
                         download_links.append(full_url)
+                    else:
+                        print(f"已爬取过该的文件，不再爬取: {full_url}")
 
         if not download_links:
             print(f"在: {html_url} 中未找到文档下载链接")
@@ -137,18 +141,24 @@ def open_capacity_nan_fang_parseToDb():
     sourceInfos = find_not_db_SourceInfo()
     if sourceInfos:
         for sourceInfo in sourceInfos:
-            ai_parse_document_and_db(sourceInfo.oss_url)
+            ai_parse_document_and_db(sourceInfo)
     return "南方电网可开放容量数据解析并落库完成"
 
 
-def ai_parse_document_and_db(oss_url):
+def ai_parse_document_and_db(sourceInfo):
+    oss_url = sourceInfo.oss_url
     local_file_path = download_oss_file(oss_url)
     # 解析文档
-    parsed_data = ai_parse_document(local_file_path)
-    if not parsed_data:
+    parsed_data_string = ai_parse_document(local_file_path)
+
+    if not parsed_data_string:
         print(f"解析文档失败: {oss_url}")
         return ""
-
+    parsed_data = []
+    try:
+        parsed_data = json.loads(parsed_data_string)
+    except json.JSONDecodeError as e:
+        print(f"JSON 解析错误: {e}")
     print(f"ai_parse_document====成功解析出{len(parsed_data)}条可开放容量的数据")
 
     # 每50行数据插入一次数据库
@@ -156,6 +166,7 @@ def ai_parse_document_and_db(oss_url):
     for i in range(0, len(parsed_data), batch_size):
         batch_data = parsed_data[i:i + batch_size]
         insert_open_capacity(batch_data)
+    update_SourceInfo_toDb(sourceInfo.id)
     print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_url}")
 
 
@@ -163,7 +174,7 @@ def download_to_oss(all_download_urls):
     oss_urls = []
     if all_download_urls:
         # todo cjs
-        all_download_urls = [all_download_urls[0]]
+        # all_download_urls = [all_download_urls[0]]
         # 处理每个下载链接
         for download_url in all_download_urls:
             print(f"two====开始上传文件：{download_url}到oss系统")

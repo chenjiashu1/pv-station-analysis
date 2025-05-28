@@ -202,7 +202,7 @@ def call_qwen_long(prompt, file_object):
         if chunk.choices and chunk.choices[0].delta.content:
             # 拼接输出内容
             full_content += chunk.choices[0].delta.content
-            print(chunk.model_dump())
+            # print(chunk.model_dump())
 
     print(f"call_qwen_long====={full_content}")
     return full_content

@@ -4,6 +4,7 @@ import os
 
 from flask_cors import CORS
 
+from database.models import insert_open_capacity
 from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl, open_capacity_nan_fang_parseToDb, \
     ai_parse_document_and_db
 from utils.aiUtil import ai_parse_document
@@ -22,7 +23,7 @@ def uploadLocalFile_api():
     input = request.get_json().get('input')
     filePath = input.get("filePath")
     fileName = input.get("fileName")
-    uploadLocalFileToOss(filePath, fileName)
+    return uploadLocalFileToOss(filePath, fileName)
 # 爬南方电网文件
 @app.route('/open_capacity/nan_fang_crawl_api', methods=['POST'])
 def open_capacity_nan_fang_crawl_api():
@@ -42,6 +43,12 @@ def ai_parse_document_api():
     input = request.get_json().get('input')
     url = input.get("url")
     return ai_parse_document_and_db(url)
+
+@app.route('/open_capacity/test/insert_open_capacity_api', methods=['POST'])
+def insert_open_capacity_api():
+    input = request.get_json().get('input')
+    return insert_open_capacity(input)
+
 
 
 if __name__ == '__main__':

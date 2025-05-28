@@ -28,7 +28,9 @@ from config import file_download_path, huaweiyun_sk, huaweiyun_ak, huaweiyun_end
     huaweiyun_object_key_prefix
 from utils.codeUtil import get_url_fingerprint_code
 
-
+obsClient = ObsClient(access_key_id=huaweiyun_ak,
+                      secret_access_key=huaweiyun_sk,
+                      server=huaweiyun_endpoint)
 def markdown_to_pdf2(markdown_content):
     output_path = "output.pdf"
     pdfkit.from_string(markdown_content, output_path)
@@ -188,19 +190,14 @@ def uploadToHuaweiyunOssBySource_url(source_url, fileName):
         response.raise_for_status()  # 检查HTTP请求状态
 
         # 设置上传头部信息
-        headers = PutObjectHeader()
-        headers.contentType = response.headers.get('Content-Type', 'application/octet-stream')
-        headers.acl = 'public-read'  # 设置对象为公共读
+        putObjectHeader = PutObjectHeader()
+        putObjectHeader.contentType = response.headers.get('Content-Type', 'application/octet-stream')
+        putObjectHeader.acl = 'public-read'  # 设置对象为公共读
 
-        # 上传文件到OBS
-        # 初始化OBS客户端
-        client = ObsClient(access_key_id=huaweiyun_ak,
-                           secret_access_key=huaweiyun_sk,
-                           server=huaweiyun_endpoint)
-        result = client.putObject(huaweiyun_bucket_name,
-                                  object_key,
-                                  response.raw,
-                                  headers=headers)
+        result = obsClient.putObject(huaweiyun_bucket_name,
+                                     object_key,
+                                     response.raw,
+                                     headers=putObjectHeader)
 
         if result.status < 300:
             # 构造OSS访问URL（虚拟托管样式）
@@ -216,9 +213,9 @@ def uploadToHuaweiyunOssBySource_url(source_url, fileName):
         print(f"上传到OSS失败: {str(e)}")
         return ""
     finally:
-        if client:
+        if obsClient:
             try:
-                client.close()  # 关闭客户端连接
+                obsClient.close()  # 关闭客户端连接
             except:
                 pass
 
@@ -258,19 +255,26 @@ def uploadLocalFileToOss(file_path, fileName):
     """
     # 这里需要添加实际的OSS上传逻辑
     try:
+        putObjectHeader = PutObjectHeader()
+        putObjectHeader.contentType = 'application/octet-stream'
+        putObjectHeader.acl = 'public-read'  # 设置对象为公共读
         # 初始化OSS客户端
-        auth = oss2.Auth(huaweiyun_ak, huaweiyun_sk)
-        bucket = oss2.Bucket(auth, huaweiyun_endpoint, huaweiyun_bucket_name)
+        # auth = oss2.Auth(huaweiyun_ak, huaweiyun_sk)
+        # bucket = oss2.Bucket(auth, huaweiyun_endpoint, huaweiyun_bucket_name)
         object_key = huaweiyun_object_key_prefix + fileName
-
-        # 上传文件
-        result = bucket.upload_file(object_key, file_path)
-
+        #
+        # # 上传文件
+        # result = bucket.upload_file(object_key, file_path)
+        result = obsClient.putFile(huaweiyun_bucket_name,
+                                     object_key,
+                                     file_path,
+                                     headers=putObjectHeader)
+        print(f'uploadLocalFileToOss-result: {result}')
         # 检查上传结果
         if result.status == 200:
-            return True
+            return result.body.objectUrl
         else:
-            return False
+            return ("上传oss未成功")
     except Exception as e:
-        print(f'Upload failed: {e}')
-        return False
+        print(f'uploadLocalFileToOss-failed: {e}')
+        return ("上传oss未成功")

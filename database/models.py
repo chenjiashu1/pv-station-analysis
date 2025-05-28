@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, Float
-from sqlalchemy.sql import func
+from datetime import datetime
+
+from flask import jsonify
+from sqlalchemy import Column, Integer, String
+from sqlalchemy import TIMESTAMP, func, Index
 
 from utils.codeUtil import get_url_fingerprint_code
 from .db_connection import Base, session
-from sqlalchemy import Column, Integer, String, DateTime, DECIMAL
-from flask import jsonify
-from datetime import datetime
 
 
 # 定义open_capacity表
@@ -45,16 +45,16 @@ def insert_open_capacity(data):
                     master_change_count=item['master_change_count'],
                     master_change_capacity=item['master_change_capacity'],
                     open_capacity=item['open_capacity'],
-                    url_fingerprint=item['url_fingerprint'],
                     create_time=current_time
                 )
             )
-        session.addAll(values)
+        session.add_all(values)
         session.commit()
-        return jsonify({"message": "Operation log inserted successfully"}), 201
+        return "保存成功"
     except Exception as e:
         session.rollback()  # 发生异常时回滚
-        return jsonify({"error": str(e)}), 500201
+        print(f"保存到数据库时发生错误: {str(e)}")
+        return "保存失败"
 
 
 class SourceInfo(Base):
@@ -67,6 +67,8 @@ class SourceInfo(Base):
     oss_url = Column(String(1023))  # 可选字段，存储OSS地址
     had_save_db = Column(Integer, nullable=False)  # 是否爬取过，0-未持久化；1-已持久化
     create_time = Column(TIMESTAMP, default=func.current_timestamp())
+    # 添加索引
+    Index('idx_url_fingerprint_code', url_fingerprint_code)
 
     def to_dict(self):
         return {
@@ -98,7 +100,19 @@ def find_not_db_SourceInfo():
                   .all())
         print(f"find_not_db_SourceInfo-result===={result}")
 
-        return ()
+        return result
+    except Exception as e:
+        session.rollback()
+        raise  # 可根据业务决定是否重新抛出异常
+
+
+def update_SourceInfo_toDb(id):
+    try:
+        source_info = session.query(SourceInfo).filter_by(id=id).first()
+        if source_info:
+            source_info.had_save_db = 1
+            session.commit()
+        return source_info
     except Exception as e:
         session.rollback()
         raise  # 可根据业务决定是否重新抛出异常
@@ -122,7 +136,7 @@ def insert_SourceInfo(source_url, source_type, oss_url):
             url_fingerprint_code=url_fingerprint_code,
             had_save_db=0,
             oss_url=oss_url,
-            create_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            create_time=datetime.now()
         )
         session.add(new_source)
         session.commit()
