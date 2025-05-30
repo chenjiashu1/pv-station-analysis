@@ -246,19 +246,6 @@ def call_ocr(prompt, img_url):
     print(f"============={completion}")
 
 
-def ai_parse_document(local_file_path):
-    prompt = """
-    # 你是专业的数据提炼和整理师
-    ## 任务：从文件的所有表格中解析出所有和可开放容量相关的信息。
-    ## 要求如下：
-        * 1、用json格式输出，不允许有```json和```，格式如下:[{"id":10,"provinceName":"云南","cityName":"昆明","countyName":"呈贡区","year":"2024","month":"9","substationName":"110kV 吴家营变 #1 主变","pv_type":"分布式","v":"110","master_change_count":"1","master_change_capacity":"50","open_capacity":"19","create_time":""}]
-        * 2、要求输出：不要包含其他解释内容，只有json内容
-            """
-
-    file_object = urlConvertToAliFileObject(local_file_path)
-    return call_qwen_long(prompt, file_object)
-
-
 def call_qwen_vl_v2(prompt, image_urls):
     print(f"call_qwen_vl-url=======: {image_urls}")
     start_time = time.time()  # 记录开始时间

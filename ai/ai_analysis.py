@@ -1,11 +1,12 @@
+import json
 from datetime import datetime
 
-from flask import Flask, jsonify, request
+from flask import jsonify
 
-from utils.aiUtil import call_deepseek
-
-from database.models import execute_sql, insert_ai_analysis_record, findSceneInfoByScene
-from utils.fileUtil import upload_content_to_oss
+from database.models import execute_sql, insert_ai_analysis_record, findSceneInfoByScene, insert_open_capacity, \
+    update_SourceInfo_toDb
+from utils.aiUtil import call_deepseek, urlConvertToAliFileObject, call_qwen_long
+from utils.fileUtil import upload_content_to_oss, download_oss_file
 
 
 def ai_sql_analysis(scene, user_request):
@@ -14,7 +15,7 @@ def ai_sql_analysis(scene, user_request):
     table_structure = findSceneInfoByScene(scene).table_structure
     if not table_structure:
         return jsonify({"error": "Invalid scene"}), 400
-    generalSqlPrompt = f"""
+    general_sql_prompt = f"""
     请根据以下信息生成SQL查询语句：
 
     - 需要生成SQL的用户问题：{user_request}
@@ -26,9 +27,9 @@ def ai_sql_analysis(scene, user_request):
     - 查询结果不能超过5000行数据
     """
 
-    print(f"ai_sql_analysis-generalSqlPrompt===={generalSqlPrompt}")
+    print(f"ai_sql_analysis-general_sql_prompt===={general_sql_prompt}")
     # 2. 构造 Prompt 生成 SQL
-    sql_query = call_deepseek(generalSqlPrompt)
+    sql_query = call_deepseek(general_sql_prompt)
     print(f"ai_sql_analysis-sql_query===={sql_query}")
     # 3. 执行 SQL 查询（此处为伪代码，实际需连接数据库）
     query_result = execute_sql(sql_query)
@@ -56,3 +57,61 @@ def ai_sql_analysis(scene, user_request):
     # 6. 记录分析结果到数据库
     insert_ai_analysis_record(scene, user_request, sql_query, html_url)
     return jsonify({"html_url": html_url})
+
+
+def call_qwen_long_parse_document(local_file_path):
+    prompt = """
+    # 你是专业的数据提炼和整理师
+    ## 任务：从文件的所有表格中解析出所有和可开放容量相关的信息。
+    ## 要求如下：
+        * 1、用json格式输出，不允许有```json和```，格式如下:[{"id":10,"provinceName":"云南","cityName":"昆明","countyName":"呈贡区","year":"2024","month":"9","substationName":"110kV 吴家营变 #1 主变","pv_type":"分布式","v":"110","master_change_count":"1","master_change_capacity":"50","open_capacity":"19","create_time":""}]
+        * 2、要求输出：不要包含其他解释内容，只有json内容
+            """
+
+    file_object = urlConvertToAliFileObject(local_file_path)
+    return call_qwen_long(prompt, file_object)
+
+
+def ai_parse_document_and_db(sourceInfo):
+    oss_url = sourceInfo.oss_url
+    local_file_path = download_oss_file(oss_url)
+    # 解析文档
+    parsed_data_string = call_qwen_long_parse_document(local_file_path)
+
+    if not parsed_data_string:
+        print(f"解析文档失败: {oss_url}")
+        return ""
+    parsed_data = []
+    try:
+        parsed_data = json.loads(parsed_data_string)
+    except json.JSONDecodeError as e:
+        print(f"JSON 解析错误: {e}")
+        return ""
+    print(f"ai_parse_document====成功解析出{len(parsed_data)}条可开放容量的数据")
+
+    # 每50行数据插入一次数据库
+    batch_size = 50
+    for i in range(0, len(parsed_data), batch_size):
+        batch_data = parsed_data[i:i + batch_size]
+        insert_open_capacity(batch_data)
+    update_SourceInfo_toDb(sourceInfo.id)
+    print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_url}")
+
+
+def ai_parse_document_and_db_v2(sourceInfo):
+    oss_pdf_url = sourceInfo.oss_url
+    prompt ="""
+    # 你是专业的文件数据提炼和整理师 
+    # 任务：解析出文件表格中所有和”可开放容量“相关的信息。
+    # 要求如下： 
+     * 1、用json格式输出，不允许有```json和```。
+     * 2、根据如下场景对输出结果进行区分:
+         * 2.1、"35kV及以上变电站"输出内容格式如下:[{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","township":"所属乡镇","year":"年","month":"月","substationName":"变电站名称","open_capacity":"可开放容量（KW）","v":"电压等级（kV）","master_change_count":"主变数量","master_change_capacity":"主变容量（KVA）"}] 
+           * 2.1.1、35kV及以上变电站需要注意"单位转化"：主变容量需要从MVA转成KVA，可开放容量需要从MW转为KW
+         * 2.2、"10kV公用线路"输出内容格式如下:[{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","year":"年","month":"月","substationName":"变电站名称","line_name":"线路名称","open_capacity":"可开放容量（KW）","rated_capacity":"额定容量（kW）","max_load":"最大负荷（kW）"}]
+         * 2.3、"公用配变"输出内容格式如下:[{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","township":"所属乡镇","year":"年","month":"月","substationName":"变电站名称或公变名称","line_name":"线路名称","open_capacity":"可开放容量（KW）","rated_capacity":"额定容量（kW）"}]
+     * 6、要求输出：不要包含其他解释内容，只有json内容
+            """
+    # 判断oss_pdf_url的文件是否为pdf,不是则抛出异常
+    # 对pdf的每一次进行切分，分片成多张图片
+    # 循环每一张图片， 调用qwen-vl-plus模型进行图片识别

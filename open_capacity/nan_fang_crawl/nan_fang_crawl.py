@@ -1,17 +1,21 @@
-import requests
 import json
-from bs4 import BeautifulSoup
-
-from database.models import insert_open_capacity, insert_SourceInfo, find_not_db_SourceInfo, exist_url_fingerprint_code, \
-    update_SourceInfo_toDb
 from urllib.parse import urlparse, parse_qs
 
-from utils.aiUtil import ai_parse_document
+import requests
+from bs4 import BeautifulSoup
+
+from ai.ai_analysis import ai_parse_document_and_db_v2
+from database.models import insert_SourceInfo, find_not_db_SourceInfo, exist_url_fingerprint_code
 from utils.codeUtil import get_url_fingerprint_code
-from utils.fileUtil import uploadToHuaweiyunOssBySource_url, download_oss_file
+from utils.fileUtil import uploadToHuaweiyunOssBySource_url
 
+queryPowerList = [{"areaCode":"05","areaName":"云南电网","level":"1","id":"yn1000000000060064"},{"areaCode":"0501","areaName":"昆明供电局","level":"2","id":"yn1000000000085087"},{"areaCode":"0502","areaName":"曲靖供电局","level":"2","id":"yn1000000000095434"},{"areaCode":"0503","areaName":"红河供电局","level":"2","id":"yn1000000000100703"},{"areaCode":"0504","areaName":"玉溪供电局","level":"2","id":"yn1000000000105193"},{"areaCode":"0506","areaName":"楚雄供电局","level":"2","id":"yn1000000000095118"},{"areaCode":"0505","areaName":"大理供电局","level":"2","id":"yn1000000000095190"},{"areaCode":"0507","areaName":"昭通供电局","level":"2","id":"yn1000000000100886"},{"areaCode":"0508","areaName":"普洱供电局","level":"2","id":"yn1000000000095348"},{"areaCode":"0510","areaName":"临沧供电局","level":"2","id":"yn1000000000095331"},{"areaCode":"0509","areaName":"西双版纳供电局","level":"2","id":"yn1000000000060063"},{"areaCode":"0511","areaName":"文山供电局","level":"2","id":"yn1000000000095496"},{"areaCode":"0512","areaName":"保山供电局","level":"2","id":"yn1000000000095117"},{"areaCode":"0513","areaName":"德宏供电局","level":"2","id":"yn1000000000100738"},{"areaCode":"0516","areaName":"怒江供电局","level":"2","id":"yn1000000000095280"},{"areaCode":"0515","areaName":"迪庆供电局","level":"2","id":"yn1000000000100737"},{"areaCode":"0514","areaName":"丽江供电局","level":"2","id":"yn1000000000095300"},{"areaCode":"0522","areaName":"瑞丽供电局","level":"2","id":"yn1000000000105131"}]
 
-def get_html_links():
+# 获取文件扩展名并匹配支持的类型
+#             supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel"}
+# for doc_type, pattern in supported_types.items():
+#     if doc_type == document_type:
+def get_html_links(areaCode):
     """调用接口获取可开放容量html链接资源"""
     url = "https://95598.csg.cn/ucs/ma/wt/searchService/queryInformationList"
     headers = {
@@ -19,7 +23,7 @@ def get_html_links():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
     }
     data = {
-        "areaCode": "0501",
+        "areaCode": areaCode,
         "level": "2",
         "classId": "b524e5cf537f4eefb42c05e2f57a436f",
         "pageNo": 1,
@@ -59,7 +63,7 @@ def get_document_type_from_url(url):
     return document_types[0] if document_types else None
 
 
-def extract_download_links(html_url):
+def extract_download_links(html_url, areaCode):
     """从HTML页面中提取所有文档下载链接"""
     try:
         headers = {
@@ -76,7 +80,7 @@ def extract_download_links(html_url):
         links = soup.find_all('a', href=True)
 
         # 存储找到的所有下载链接
-        download_links = []
+        linkInfoList = []
 
         # 常见文档类型的正则表达式模式
         # doc_patterns = {
@@ -93,45 +97,49 @@ def extract_download_links(html_url):
         # 检查每个链接是否匹配支持的文档类型
         for link in links:
             href = link['href']
-            # 获取文件扩展名并匹配支持的类型
-            supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel"}
+            link_name = link.text
             document_type = get_document_type_from_url(href)
-            for doc_type, pattern in supported_types.items():
-                if doc_type == document_type:
-                    # 如果是相对路径，补全URL
-                    if href.startswith('/'):
-                        from urllib.parse import urljoin
-                        full_url = urljoin(html_url, href)
-                    else:
-                        full_url = href
-                    url_fingerprint_code  = get_url_fingerprint_code(full_url)
-                    if not exist_url_fingerprint_code(url_fingerprint_code):
-                        # 添加到下载链接列表
-                        download_links.append(full_url)
-                    else:
-                        print(f"已爬取过该的文件，不再爬取: {full_url}")
+            full_url = href
+            url_fingerprint_code = get_url_fingerprint_code(full_url)
+            if not exist_url_fingerprint_code(url_fingerprint_code):
+                # 添加到下载链接列表
+                linkInfo = {
+                    "link_url": full_url,
+                    "link_name": link_name,
+                    "url_fingerprint_code": url_fingerprint_code,
+                    "document_type": document_type,
+                    "areaCode":  areaCode
+                }
+                linkInfoList.append(linkInfo)
+            else:
+                print(f"已爬取过该的文件，不再爬取: {full_url}")
+                continue
 
-        if not download_links:
+        if not linkInfoList:
             print(f"在: {html_url} 中未找到文档下载链接")
-        print(f"提取到如下下载链接： {html_url}")
-        return download_links
+            return []
+        print(f"提取到如下下载链接： {linkInfoList}")
+        print(f"链接中有{len(linkInfoList)}个下载链接")
+        return linkInfoList
     except Exception as e:
         print(f"提取下载链接时发生错误({html_url}): {str(e)}")
         return []
 
 
-def open_capacity_nan_fang_crawl():
+def open_capacity_nan_fang_crawl(areaCode):
     """主函数"""
     try:
         # 获取HTML链接
-        html_links = get_html_links()
+        html_links = get_html_links(areaCode)
         if not html_links:
-            print("没有找到符合条件的HTML链接")
+            print("one======没有找到符合条件的HTML链接")
             return
 
-        all_download_urls = batch_extract_download_links(html_links)
-
-        return download_to_oss(all_download_urls)
+        all_linkInfoList = batch_extract_download_links(html_links, areaCode)
+        if not all_linkInfoList:
+            print("two======没有提炼到符合条件的HTML下载链接")
+            return
+        return download_to_oss(all_linkInfoList)
     except Exception as e:
         print(f"主程序运行时发生错误: {str(e)}")
         return "数据处理失败"
@@ -141,46 +149,21 @@ def open_capacity_nan_fang_parseToDb():
     sourceInfos = find_not_db_SourceInfo()
     if sourceInfos:
         for sourceInfo in sourceInfos:
-            ai_parse_document_and_db(sourceInfo)
+            ai_parse_document_and_db_v2(sourceInfo)
     return "南方电网可开放容量数据解析并落库完成"
 
 
-def ai_parse_document_and_db(sourceInfo):
-    oss_url = sourceInfo.oss_url
-    local_file_path = download_oss_file(oss_url)
-    # 解析文档
-    parsed_data_string = ai_parse_document(local_file_path)
-
-    if not parsed_data_string:
-        print(f"解析文档失败: {oss_url}")
-        return ""
-    parsed_data = []
-    try:
-        parsed_data = json.loads(parsed_data_string)
-    except json.JSONDecodeError as e:
-        print(f"JSON 解析错误: {e}")
-        return ""
-    print(f"ai_parse_document====成功解析出{len(parsed_data)}条可开放容量的数据")
-
-    # 每50行数据插入一次数据库
-    batch_size = 50
-    for i in range(0, len(parsed_data), batch_size):
-        batch_data = parsed_data[i:i + batch_size]
-        insert_open_capacity(batch_data)
-    update_SourceInfo_toDb(sourceInfo.id)
-    print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_url}")
-
-
-def download_to_oss(all_download_urls):
+def download_to_oss(all_linkInfoList):
     oss_urls = []
-    if all_download_urls:
+    if all_linkInfoList:
         # todo cjs
-        # all_download_urls = [all_download_urls[0]]
+        all_linkInfoList = [all_linkInfoList[0]]
         # 处理每个下载链接
-        for download_url in all_download_urls:
+        for linkInfo in all_linkInfoList:
+            download_url = linkInfo['link_url']
             print(f"two====开始上传文件：{download_url}到oss系统")
-            document_type = get_document_type_from_url(download_url)
-            url_fingerprint_code = get_url_fingerprint_code(download_url)
+            document_type = linkInfo['document_type']
+            url_fingerprint_code = linkInfo['url_fingerprint_code']
             fileName = url_fingerprint_code + "." + document_type
             oss_url = uploadToHuaweiyunOssBySource_url(download_url, fileName)
             if not oss_url:
@@ -188,24 +171,23 @@ def download_to_oss(all_download_urls):
                 continue
             print(f"three====上传成功，oss文件链接：{oss_url}")
             url_fingerprint_code = insert_SourceInfo(
-                download_url, "南方电网-可开放容量", oss_url)
+                download_url, "南方电网-可开放容量",     json.dumps(linkInfo, ensure_ascii=False), oss_url)
             print(f"three====并记录下载指纹：{url_fingerprint_code}")
             oss_urls.append(oss_url)
     return oss_urls
 
-def batch_extract_download_links(html_links):
+def batch_extract_download_links(html_links, areaCode):
     # 处理每个HTML链接
-    all_download_urls = []
+    all_linkInfoList = []
     for html_url in html_links:
-        print(f"处理链接: {html_url}")
+        print(f"batch_extract_download_links===: {html_url}")
 
         # 提取文档下载链接
-        download_urls = extract_download_links(html_url)
+        linkInfoList = extract_download_links(html_url, areaCode)
 
-        if not download_urls:
+        if not linkInfoList:
             print(f"无法从{html_url}提取下载链接")
             continue
-        print(f"链接中有{len(download_urls)}个下载链接")
-        all_download_urls = all_download_urls + download_urls
-    print(f"two====总共找到{len(all_download_urls)}个下载链接: {', '.join(all_download_urls)}")
-    return all_download_urls
+        all_linkInfoList = all_linkInfoList + linkInfoList
+    print(f"two====总共找到{len(all_linkInfoList)}个下载链接")
+    return all_linkInfoList

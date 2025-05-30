@@ -40,11 +40,13 @@ ai_scene_info = [{
     "table_structure": open_capacity_table_structure
 }]
 
+
 def findSceneInfoByScene(scene):
     for scene_info in ai_scene_info:
         if scene_info["scene"] == scene:
             return scene_info
     raise "未找到场景信息"
+
 
 def execute_sql(sql):
     result = session.execute(text(sql))
@@ -87,7 +89,7 @@ def insert_open_capacity(data):
                     year=item['year'],
                     month=item['month'],
                     substationName=item['substationName'],
-                    pv_type=item['pv_type'],
+                    pv_type="分布式",
                     v=item['v'],
                     master_change_count=item['master_change_count'],
                     master_change_capacity=item['master_change_capacity'],
@@ -114,6 +116,7 @@ class SourceInfo(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     source_url = Column(String(1023), nullable=False)
     source_type = Column(String(255), nullable=False)  # 来源途径，如：爬虫、API、手动输入等
+    sourceLinkInfo = Column(String(1023), nullable=False)  # 来源信息
     url_fingerprint_code = Column(String(255), nullable=False, unique=True)  # 来源url指纹code，唯一标识
     oss_url = Column(String(1023))  # 可选字段，存储OSS地址
     had_save_db = Column(Integer, nullable=False)  # 是否爬取过，0-未持久化；1-已持久化
@@ -126,6 +129,7 @@ class SourceInfo(Base):
             'id': self.id,
             'source_url': self.source_url,
             'source_type': self.source_type,
+            'sourceLinkInfo': self.sourceLinkInfo,
             'url_fingerprint_code': self.url_fingerprint_code,
             'oss_url': self.oss_url,
             'had_save_db': self.had_save_db,
@@ -139,8 +143,8 @@ def exist_url_fingerprint_code(url_fingerprint_code):
                 .filter_by(url_fingerprint_code=url_fingerprint_code)
                 .first())
     if existing:
-        return False
-    return True
+        return True
+    return False
 
 
 def find_not_db_SourceInfo():
@@ -169,7 +173,7 @@ def update_SourceInfo_toDb(id):
         raise  # 可根据业务决定是否重新抛出异常
 
 
-def insert_SourceInfo(source_url, source_type, oss_url):
+def insert_SourceInfo(source_url, source_type, sourceLinkInfo, oss_url):
     url_fingerprint_code = get_url_fingerprint_code(source_url)
 
     """
@@ -184,6 +188,7 @@ def insert_SourceInfo(source_url, source_type, oss_url):
         new_source = SourceInfo(
             source_url=source_url,
             source_type=source_type,
+            sourceLinkInfo=sourceLinkInfo,
             url_fingerprint_code=url_fingerprint_code,
             had_save_db=0,
             oss_url=oss_url,
