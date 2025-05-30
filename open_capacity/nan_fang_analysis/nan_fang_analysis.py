@@ -1,6 +1,8 @@
 import json
 import os
 
+from Scripts import fitz
+
 from database.models import find_not_db_SourceInfo, insert_open_capacity, update_SourceInfo_toDb
 from open_capacity.nan_fang_crawl.nan_fang_crawl import findAreaNameByAreaCode
 from utils.aiUtil import call_qwen_vl_max_latest
@@ -31,35 +33,44 @@ def ai_parse_nanfang_document_and_db_v2(sourceInfo):
 
     # 下载OSS文件到本地
     local_file_path = download_oss_file(oss_pdf_url)
+    
+    # 将pdf根据表格进行切分成多个子pdf
+    doc = fitz.open(local_file_path)
+    sub_pdfs = []
+    
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        tables = page.find_tables()
+        
+        if tables.tables:
+            # 如果页面有表格，则创建一个新的PDF文档
+            sub_doc = fitz.open()
+            sub_page = sub_doc.new_page(width=page.rect.width, height=page.rect.height)
+            sub_page.show_pdf_page(sub_page.rect, doc, page_num)
+            
+            # 保存子PDF
+            sub_pdf_path = f"{os.path.splitext(local_file_path)[0]}_page_{page_num}.pdf"
+            sub_doc.save(sub_pdf_path)
+            sub_pdfs.append(sub_pdf_path)
+            sub_doc.close()
 
-    # 对oss_pdf_url的每一页进行切分成图片
-    output_dir = os.path.splitext(local_file_path)[0] + "_images"
-    image_paths = convert_pdf_to_images(local_file_path, output_dir)
+            # 对子PDF进行切片
+            output_dir = os.path.splitext(sub_pdf_path)[0] + "_images"
+            image_paths = convert_pdf_to_images(sub_pdf_path, output_dir)
 
-    prompt = f"""
-    # 你是专业的文件数据提炼和整理师 
-    # 该文件是{AreaName}的{link_name}
-    # 任务：解析出文件表格中所有和”可开放容量“相关的信息。
-    # 要求如下： 
-     * 1、用json格式输出，不允许有```json和```。
-     * 2、根据如下场景对输出结果进行区分:
-         * 2.1、\"35kV及以上变电站\"输出内容格式如下:[{{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","township":"所属乡镇","year":"年","month":"月","substationName":"变电站名称\",\"open_capacity\":\"可开放容量（KW）\",\"v\":\"电压等级（kV）\",\"master_change_count\":\"主变数量\",\"master_change_capacity\":\"主变容量（KVA）\"}}] 
-           * 2.1.1、35kV及以上变电站需要注意\"单位转化\"：主变容量需要从MVA转成KVA，可开放容量需要从MW转为KW
-         * 2.2、\"10kV公用线路\"输出内容格式如下:[{{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","year":"年","month":"月\",\"substationName\":\"变电站名称\",\"line_name\":\"线路名称\",\"open_capacity\":\"可开放容量（KW）\",\"rated_capacity\":\"额定容量（kW）\",\"max_load\":\"最大负荷（kW）\"}}]
-         * 2.3、\"公用配变\"输出内容格式如下:[{{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","township":"所属乡镇","year":"年","month":"月\",\"substationName\":\"变电站名称或公变名称\",\"line_name\":\"线路名称\",\"open_capacity\":\"可开放容量（KW）\",\"rated_capacity\":\"额定容量（kW）\"}}]
-     * 6、要求输出：不要包含其他解释内容，只有json内容
-            """
-
-    # 循环每一张图片， 调用qwen-vl-plus模型进行图片识别出json结果
-    all_results = []
-    for image_path in image_paths:
-        result_json = call_qwen_vl_max_latest(prompt, image_path)
-        try:
-            result = json.loads(result_json)
-            # 插入数据库
-            if len(result) > 0:
-                insert_open_capacity(result)
-        except json.JSONDecodeError as e:
-            print(f"JSON 解析错误: {e}, 原始内容: {result_json}")
+            # 循环每一张图片， 调用qwen-vl-plus模型进行图片识别出json结果
+            for image_path in image_paths:
+                result_json = call_qwen_vl_max_latest(prompt, image_path)
+                try:
+                    result = json.loads(result_json)
+                    # 插入数据库
+                    if len(result) > 0:
+                        insert_open_capacity(result)
+                except json.JSONDecodeError as e:
+                    print(f"JSON 解析错误: {e}, 原始内容: {result_json}")
+    doc.close()
+    # 更新数据库
     update_SourceInfo_toDb(sourceInfo.id)
-    print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_pdf_url}")
+    print(f"ai_parse_nanfang_document_and_db_v2-oss_url====数据解析并落库完成:{oss_pdf_url}")
+    
+    return "数据解析并落库完成："+oss_pdf_url
