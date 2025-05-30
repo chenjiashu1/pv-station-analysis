@@ -1,5 +1,6 @@
 import sys
 import os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from sqlalchemy import Text
@@ -12,14 +13,44 @@ from utils.codeUtil import get_url_fingerprint_code
 from .db_connection import Base, session
 from sqlalchemy import text
 
+open_capacity_table_structure = """
+CREATE TABLE open_capacity (
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    provinceName VARCHAR(255) COMMENT '省份名称',
+    cityName VARCHAR(255) COMMENT '城市名称',
+    countyName VARCHAR(255) COMMENT '县/区名称',
+    township VARCHAR(255) COMMENT '所属乡镇',
+    year VARCHAR(255) COMMENT '年',
+    month VARCHAR(255) COMMENT '月',
+    substationName VARCHAR(255) COMMENT '变电站名称',
+    line_name VARCHAR(255) COMMENT '线路名称',
+    open_capacity VARCHAR(255) COMMENT '可开放容量（KW）',
+    pv_type VARCHAR(255) DEFAULT '分布式' COMMENT '电站类型',
+    v VARCHAR(255) COMMENT '电压等级（kV）',
+    rated_capacity VARCHAR(255) COMMENT '额定容量（kW）',
+    max_load VARCHAR(255) COMMENT '最大负荷（kW）',
+    master_change_count VARCHAR(255) COMMENT '主变数量',
+    master_change_capacity VARCHAR(255) COMMENT '主变容量（KVA）',
+    create_time VARCHAR(255) COMMENT '创建时间'
+) COMMENT='可开放容量';
+"""
+ai_scene_info = [{
+    "scene": "open_capacity",
+    "scene_name": "可开放容量",
+    "table_structure": open_capacity_table_structure
+}]
 
-open_capacity_table_structure = "open_capacity (id, provinceName, cityName, countyName, year, month, substationName, pv_type, v, master_change_count, master_change_capacity, open_capacity, create_time)"
-table_structure_map = {"open_capacity":  open_capacity_table_structure}
-table_name_map = {"open_capacity":  "可开放容量"}
+def findSceneInfoByScene(scene):
+    for scene_info in ai_scene_info:
+        if scene_info["scene"] == scene:
+            return scene_info
+    raise "未找到场景信息"
 
 def execute_sql(sql):
     result = session.execute(text(sql))
     return result.mappings().all()
+
+
 # 定义open_capacity表
 class open_capacity(Base):
     __tablename__ = 'open_capacity'
@@ -27,14 +58,18 @@ class open_capacity(Base):
     provinceName = Column(String(255), comment='省份名称')
     cityName = Column(String(255), comment='城市名称')
     countyName = Column(String(255), comment='县/区名称')
+    township = Column(String(255), comment='所属乡镇')
     year = Column(String(255), comment='年')
     month = Column(String(255), comment='月')
     substationName = Column(String(255), comment='变电站名称')
+    line_name = Column(String(255), comment='线路名称')
+    open_capacity = Column(String(255), comment='可开放容量（KW）')
     pv_type = Column(String(255), comment='电站类型', default="分布式")
     v = Column(String(255), comment='电压等级（kV）')
+    rated_capacity = Column(String(255), comment='额定容量（kW）')
+    max_load = Column(String(255), comment='最大负荷（kW）')
     master_change_count = Column(String(255), comment='主变数量')
-    master_change_capacity = Column(String(255), comment='主变容量（MVA）')
-    open_capacity = Column(String(255), comment='可开放容量（MW）')
+    master_change_capacity = Column(String(255), comment='主变容量（KVA）')
     create_time = Column(String(255), comment='创建时间')
 
 
@@ -57,7 +92,11 @@ def insert_open_capacity(data):
                     master_change_count=item['master_change_count'],
                     master_change_capacity=item['master_change_capacity'],
                     open_capacity=item['open_capacity'],
-                    create_time=current_time
+                    create_time=current_time,
+                    line_name=item.get('line_name', ''),
+                    rated_capacity=item.get('rated_capacity', ''),
+                    max_load=item.get('max_load', ''),
+                    township=item.get('township', '')
                 )
             )
         session.add_all(values)
@@ -176,6 +215,8 @@ class AIAnalysisRecord(Base):
             'oss_url': self.oss_url,
             'create_time': self.create_time
         }
+
+
 def insert_ai_analysis_record(scene, user_request, sql_query, html_url):
     try:
         new_source = AIAnalysisRecord(

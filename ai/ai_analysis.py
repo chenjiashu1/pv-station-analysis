@@ -4,14 +4,14 @@ from flask import Flask, jsonify, request
 
 from utils.aiUtil import call_deepseek
 
-from database.models import table_structure_map, execute_sql, table_name_map, insert_ai_analysis_record
+from database.models import execute_sql, insert_ai_analysis_record, findSceneInfoByScene
 from utils.fileUtil import upload_content_to_oss
 
 
 def ai_sql_analysis(scene, user_request):
     # 1. 根据场景匹配表结构
     # 实际使用时应根据具体业务逻辑动态选择表结构
-    table_structure = table_structure_map.get(scene)
+    table_structure = findSceneInfoByScene(scene).table_structure
     if not table_structure:
         return jsonify({"error": "Invalid scene"}), 400
     generalSqlPrompt = f"""
@@ -33,11 +33,11 @@ def ai_sql_analysis(scene, user_request):
     # 3. 执行 SQL 查询（此处为伪代码，实际需连接数据库）
     query_result = execute_sql(sql_query)
     # query_result = [{"provinceName": "广东省", "cityName": "广州市", "open_capacity": "100MW"}]
-    table_name = table_name_map.get(scene)
+    scene_name = findSceneInfoByScene(scene).scene_name
     # 4. 构造 Prompt2 生成 HTML
     ai_sql_analysis_prompt = f"""
     # 您是专业的数据分析专家
-    # 请分析以下数据：{query_result}，着重关注：{table_name}
+    # 请分析以下数据：{query_result}，着重关注：{scene_name}
     # 要求
         - 使用简洁清晰美观的图形和表格的方式呈现
         - 包含中文标题和单位
