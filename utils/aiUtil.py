@@ -1,9 +1,13 @@
+import base64
 import os
 from pathlib import Path
 from tkinter import messagebox
 
 from openai import OpenAI
 import time
+import json
+from config import QWEN_VL_PLUS_API_KEY, QWEN_VL_PLUS_URL
+import requests
 import json
 from config import ALI_ACCESS_KEY
 from dashscope import VideoSynthesis
@@ -271,6 +275,38 @@ def call_qwen_vl_v2(prompt, image_urls):
     except Exception as e:
         messagebox.showerror("call_qwen_vl模型调用失败", f"请检查网络1或 API Key：{str(e)}")
         return None
+
+
+def call_qwen_vl_max_latest(prompt, image_path):
+    """
+    调用 Qwen-VL-Plus API 进行图像识别。
+
+    :param prompt: 提示语。
+    :param image_path: 图像文件路径。
+    :return: API 返回的 JSON 结果。
+    """
+    headers = {
+        "Authorization": f"Bearer {ALI_ACCESS_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    # 读取图像文件并转换为 base64 编码
+    with open(image_path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+
+    payload = {
+        "model": "qwen-vl-max-latest",  # 指定模型版本
+        "prompt": prompt,
+        "image": f"data:image/png;base64,{encoded_string}"
+    }
+
+    response = requests.post(QWEN_VL_PLUS_URL, headers=headers, data=json.dumps(payload))
+    result = response.json()
+
+    if 'error' in result:
+        raise Exception(f"Qwen-VL-Plus API Error: {result['error']}")
+
+    return result.get('output', {}).get('text', '')
 
 
 def call_qwen_vl(prompt, image_urls):

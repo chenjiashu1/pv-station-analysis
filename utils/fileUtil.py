@@ -1,8 +1,6 @@
-# import markdown2
-# from weasyprint import HTML
-# import tempfile
 import os
 
+import fitz  # PyMuPDF
 import pandas as pd
 import pdfkit
 import requests
@@ -309,3 +307,30 @@ def upload_content_to_oss(html_content, fileName):
     except Exception as e:
         print(f'upload_content_to_oss-failed: {e}')
         return ("上传oss未成功")
+
+
+def convert_pdf_to_images(pdf_path, output_folder, zoom=2):
+    """
+    将PDF文件转换为图像列表。
+
+    :param pdf_path: PDF文件路径。
+    :param output_folder: 输出图像的文件夹。
+    :param zoom: 图像缩放级别，默认为2。
+    :return: 图像文件路径列表。
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    doc = fitz.open(pdf_path)
+    image_paths = []
+
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        image_path = os.path.join(output_folder, f"page_{page_num + 1}.png")
+        pix.save(image_path)
+        image_paths.append(image_path)
+
+    doc.close()
+    return image_paths

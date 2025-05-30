@@ -1,12 +1,11 @@
 from flask import Flask, jsonify, request
-import requests
-import os
-
 from flask_cors import CORS
 
-from ai.ai_analysis import ai_sql_analysis, ai_parse_nanfang_document_and_db_v2
-from database.models import insert_open_capacity
-from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl, open_capacity_nan_fang_parseToDb
+from ai.ai_analysis import ai_sql_analysis
+from database.models import insert_open_capacity, find_SourceInfo_by_id
+from open_capacity.nan_fang_analysis.nan_fang_analysis import open_capacity_nan_fang_parseToDb, \
+    ai_parse_nanfang_document_and_db_v2
+from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl
 from utils.fileUtil import uploadToHuaweiyunOssBySource_url, uploadLocalFileToOss
 
 app = Flask(__name__)
@@ -59,8 +58,9 @@ def open_capacity_nan_fang_parseToDb_api():
 @app.route('/open_capacity/test/ai_parse_document_and_db_api', methods=['POST'])
 def ai_parse_document_api():
     input = request.get_json().get('input')
-    url = input.get("url")
-    return ai_parse_nanfang_document_and_db_v2(url)
+    sourceId = input.get("sourceId")
+    sourceInfo = find_SourceInfo_by_id(sourceId)
+    return ai_parse_nanfang_document_and_db_v2(sourceInfo)
 
 
 @app.route('/open_capacity/test/insert_open_capacity_api', methods=['POST'])

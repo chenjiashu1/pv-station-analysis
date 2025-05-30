@@ -25,6 +25,10 @@ COMPANY_ALI_ACCESS_KEY = "sk-ad510e9560454dcc977de24bc3fac065"
 ALI_ACCESS_KEY = COMPANY_ALI_ACCESS_KEY
 dashscope.api_key = ALI_ACCESS_KEY
 
+# Qwen-VL-Plus API 配置
+QWEN_VL_PLUS_API_KEY = "your_api_key_here"
+QWEN_VL_PLUS_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+
 # ================gaode========================
 
 
