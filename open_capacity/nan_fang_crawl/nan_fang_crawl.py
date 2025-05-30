@@ -4,13 +4,17 @@ from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 
-from ai.ai_analysis import ai_parse_document_and_db_v2
+from ai.ai_analysis import ai_parse_nanfang_document_and_db_v2
 from database.models import insert_SourceInfo, find_not_db_SourceInfo, exist_url_fingerprint_code
 from utils.codeUtil import get_url_fingerprint_code
 from utils.fileUtil import uploadToHuaweiyunOssBySource_url
 
 queryPowerList = [{"areaCode":"05","areaName":"云南电网","level":"1","id":"yn1000000000060064"},{"areaCode":"0501","areaName":"昆明供电局","level":"2","id":"yn1000000000085087"},{"areaCode":"0502","areaName":"曲靖供电局","level":"2","id":"yn1000000000095434"},{"areaCode":"0503","areaName":"红河供电局","level":"2","id":"yn1000000000100703"},{"areaCode":"0504","areaName":"玉溪供电局","level":"2","id":"yn1000000000105193"},{"areaCode":"0506","areaName":"楚雄供电局","level":"2","id":"yn1000000000095118"},{"areaCode":"0505","areaName":"大理供电局","level":"2","id":"yn1000000000095190"},{"areaCode":"0507","areaName":"昭通供电局","level":"2","id":"yn1000000000100886"},{"areaCode":"0508","areaName":"普洱供电局","level":"2","id":"yn1000000000095348"},{"areaCode":"0510","areaName":"临沧供电局","level":"2","id":"yn1000000000095331"},{"areaCode":"0509","areaName":"西双版纳供电局","level":"2","id":"yn1000000000060063"},{"areaCode":"0511","areaName":"文山供电局","level":"2","id":"yn1000000000095496"},{"areaCode":"0512","areaName":"保山供电局","level":"2","id":"yn1000000000095117"},{"areaCode":"0513","areaName":"德宏供电局","level":"2","id":"yn1000000000100738"},{"areaCode":"0516","areaName":"怒江供电局","level":"2","id":"yn1000000000095280"},{"areaCode":"0515","areaName":"迪庆供电局","level":"2","id":"yn1000000000100737"},{"areaCode":"0514","areaName":"丽江供电局","level":"2","id":"yn1000000000095300"},{"areaCode":"0522","areaName":"瑞丽供电局","level":"2","id":"yn1000000000105131"}]
-
+def findAreaNameByAreaCode(areaCode):
+    for pv in queryPowerList:
+        if pv["areaCode"] == areaCode:
+            return pv['areaName']
+    raise "未找到该区域"+areaCode
 # 获取文件扩展名并匹配支持的类型
 #             supported_types = {"pdf": "pdf", "PDF": "pdf", "xls": "excel", "xlsx": "excel"}
 # for doc_type, pattern in supported_types.items():
@@ -149,7 +153,7 @@ def open_capacity_nan_fang_parseToDb():
     sourceInfos = find_not_db_SourceInfo()
     if sourceInfos:
         for sourceInfo in sourceInfos:
-            ai_parse_document_and_db_v2(sourceInfo)
+            ai_parse_nanfang_document_and_db_v2(sourceInfo)
     return "南方电网可开放容量数据解析并落库完成"
 
 

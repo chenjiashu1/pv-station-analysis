@@ -4,7 +4,7 @@ import os
 
 from flask_cors import CORS
 
-from ai.ai_analysis import ai_sql_analysis
+from ai.ai_analysis import ai_sql_analysis, ai_parse_nanfang_document_and_db_v2
 from database.models import insert_open_capacity
 from open_capacity.nan_fang_crawl.nan_fang_crawl import open_capacity_nan_fang_crawl, open_capacity_nan_fang_parseToDb
 from utils.fileUtil import uploadToHuaweiyunOssBySource_url, uploadLocalFileToOss
@@ -60,7 +60,7 @@ def open_capacity_nan_fang_parseToDb_api():
 def ai_parse_document_api():
     input = request.get_json().get('input')
     url = input.get("url")
-    return ai_parse_document_and_db(url)
+    return ai_parse_nanfang_document_and_db_v2(url)
 
 
 @app.route('/open_capacity/test/insert_open_capacity_api', methods=['POST'])

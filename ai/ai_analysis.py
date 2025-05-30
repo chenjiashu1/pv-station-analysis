@@ -5,6 +5,7 @@ from flask import jsonify
 
 from database.models import execute_sql, insert_ai_analysis_record, findSceneInfoByScene, insert_open_capacity, \
     update_SourceInfo_toDb
+from open_capacity.nan_fang_crawl.nan_fang_crawl import queryPowerList, findAreaNameByAreaCode
 from utils.aiUtil import call_deepseek, urlConvertToAliFileObject, call_qwen_long
 from utils.fileUtil import upload_content_to_oss, download_oss_file
 
@@ -97,11 +98,20 @@ def ai_parse_document_and_db(sourceInfo):
     update_SourceInfo_toDb(sourceInfo.id)
     print(f"ai_parse_document_and_db-oss_url====数据解析并落库完成:{oss_url}")
 
-
-def ai_parse_document_and_db_v2(sourceInfo):
+# ai解析南方电网文件并落库
+def ai_parse_nanfang_document_and_db_v2(sourceInfo):
     oss_pdf_url = sourceInfo.oss_url
-    prompt ="""
+    document_type = sourceInfo.sourceLinkInfo['document_type']
+    areaCode = sourceInfo.sourceLinkInfo['areaCode']
+    AreaName = findAreaNameByAreaCode(areaCode)
+    link_name = sourceInfo.sourceLinkInfo['link_name']
+
+    # todo 判断document_type是否为pdf，否则提示“不支持该文件解析”
+    # todo 对oss_pdf_url的每一页进行切分成图片
+
+    prompt =f"""
     # 你是专业的文件数据提炼和整理师 
+    # 该文件是{AreaName}的{link_name}
     # 任务：解析出文件表格中所有和”可开放容量“相关的信息。
     # 要求如下： 
      * 1、用json格式输出，不允许有```json和```。
@@ -112,6 +122,6 @@ def ai_parse_document_and_db_v2(sourceInfo):
          * 2.3、"公用配变"输出内容格式如下:[{"provinceName":"省份名称","cityName":"城市名称","countyName":"呈县/区名称区","township":"所属乡镇","year":"年","month":"月","substationName":"变电站名称或公变名称","line_name":"线路名称","open_capacity":"可开放容量（KW）","rated_capacity":"额定容量（kW）"}]
      * 6、要求输出：不要包含其他解释内容，只有json内容
             """
-    # 判断oss_pdf_url的文件是否为pdf,不是则抛出异常
-    # 对pdf的每一次进行切分，分片成多张图片
-    # 循环每一张图片， 调用qwen-vl-plus模型进行图片识别
+    # todo 循环每一张图片， 调用qwen-vl-plus模型进行图片识别出json结果，提示语是prompt
+    # todo 对json数据进行落库
+
