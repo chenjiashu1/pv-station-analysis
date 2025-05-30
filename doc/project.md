@@ -21,9 +21,17 @@
   * 每50行数据通过sqlalchemy进行插入到表open_capacity操作
 
 ### 电站分析前端服务
- * 可开放容量列表查询界面
- * 用户自定义AI分析功能
- * 展示AI分析记录表
+#### 前端功能说明：
+ * 前端系统名称为"TCL智能分析系统"
+ * 界面设计要求：整个界面需要高大上。以中国红为主色调。界面需要包含tcl的水印。
+ * 首页包含两个模块："可开放容量"和"AI分析记录"
+ * "可开放容量"模块，该模块用于查询数据库的可开放容量信息，具有以下功能：
+   *  可开放容量列表分页查询：调用post接口：http://localhost:5000/open_capacity/list  。入参demo如下：{"provinceName":"云南省","cityName":"昆明市","countyName":"晋宁区","year":"2024","month":"8","substationName":"变电站名称","pageNo":"1","pageSize":"20"}，出参demo如下：{"code":"0","message":"请求成功","data":{"count":1,"list":[{"provinceName":"云南省","cityName":"昆明市","countyName":"晋宁区","year":"2024","month":"8","substationName":"变电站名称","pv_type":"分布式","v":"电压等级(kw)","master_change_count":"主变数量","master_change_capacity":"主"}]}}
+   *  可开放容量列表分页查询：查询条件包括：省、市、县、年、月、变电站名称（模糊）,查询结果列表的列名包括：省、市、县区、年、月、变电站名称、电站类型、电压等级（kV）、主变数量、主变容量（MVA）、可开放容量（MW）、创建时间
+   *  右上角有一个浮动的"AI助手",用龙头做图标，点击后弹出一个对话框，对话框中包含一个输入框，用户输入问题，点击"智能分析"按钮，调用post接口：http://localhost:5000/common/ai_sql_analysis_api  。入参demo如下：{"input":{"scene":"open_capacity","user_request":"分析呈贡区各个变电站的可开放容量变化情况"}}，出参demo如下：{"code":"0","message":""}
+ * "AI分析记录"模块，该模块用于查看用户自定义AI分析功能生成的结果，具有以下功能：
+   *  AI分析记录列表分页查询：调用post接口：http://localhost:5000/common/ai_analysis_record/list  。入参demo如下：{"scene"："场景","pageNo":"1","pageSize":"20"}，出参demo如下：{"code":"0","message":"请求成功","data":{"count":1,"list":[{"id":"1","scene_name":"场景名称","user_request":"用户问题","sql_query":"ai生成的sql","oss_url":"ai生成的HTML文件OSS地址"}]}}
+   *  oss_url是个html文件链接，点击可以跳转到新页面并展示
 
 ### 电网AI分析切入点
  * 用户自定义AI分析功能接口

@@ -23,6 +23,7 @@ def ai_sql_analysis(scene, user_request):
     - 要求输出：仅返回有效的SQL语句，不要包含其他解释内容。
     - 输出结果不能包含```sql和```
     - 遵循sql_mode为ONLY_FULL_GROUP_BY的模式
+    - 查询结果不能超过5000行数据
     """
 
     print(f"ai_sql_analysis-generalSqlPrompt===={generalSqlPrompt}")

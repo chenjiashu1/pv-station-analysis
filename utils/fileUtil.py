@@ -3,10 +3,15 @@
 # import tempfile
 import os
 
-import oss2
+import pandas as pd
+import pdfkit
+import requests
 from obs import ObsClient, PutObjectHeader
 
-import pandas as pd
+from config import file_download_path, huaweiyun_sk, huaweiyun_ak, huaweiyun_endpoint, huaweiyun_bucket_name, \
+    huaweiyun_object_key_prefix
+from utils.codeUtil import get_url_fingerprint_code
+
 # def markdown_to_pdf(markdown_text):
 #     # 将 Markdown 转 HTML
 #     html_content = markdown2.markdown(markdown_text)
@@ -20,17 +25,11 @@ import pandas as pd
 #
 #     return pdf_path
 
-
-import pdfkit
-import requests
-
-from config import file_download_path, huaweiyun_sk, huaweiyun_ak, huaweiyun_endpoint, huaweiyun_bucket_name, \
-    huaweiyun_object_key_prefix
-from utils.codeUtil import get_url_fingerprint_code
-
 obsClient = ObsClient(access_key_id=huaweiyun_ak,
                       secret_access_key=huaweiyun_sk,
                       server=huaweiyun_endpoint)
+
+
 def markdown_to_pdf2(markdown_content):
     output_path = "output.pdf"
     pdfkit.from_string(markdown_content, output_path)
@@ -39,7 +38,6 @@ def markdown_to_pdf2(markdown_content):
 
 def parse_pdf(filepath):
     # PDF解析实现
-    import PyPDF2
     import pdfplumber
     import pandas as pd
 
@@ -233,7 +231,8 @@ def download_oss_file(oss_url):
 
     # 获取文件名
     file_name = os.path.basename(oss_url)
-    local_file_path = os.path.join(file_download_path, file_name)
+    local_file_path = file_download_path + file_name
+    # local_file_path = os.path.join(file_download_path, file_name)
 
     # 下载文件
     response = requests.get(oss_url)
@@ -250,7 +249,6 @@ def uploadLocalFileToOss(file_path, fileName):
     Uploads a local file to Alibaba Cloud OSS.
 
     :param file_path: Path of the file on the local system
-    :param oss_key: The key under which the file will be stored in OSS
     :return: True if upload was successful, False otherwise
     """
     # 这里需要添加实际的OSS上传逻辑
@@ -266,9 +264,9 @@ def uploadLocalFileToOss(file_path, fileName):
         # # 上传文件
         # result = bucket.upload_file(object_key, file_path)
         result = obsClient.putFile(huaweiyun_bucket_name,
-                                     object_key,
-                                     file_path,
-                                     headers=putObjectHeader)
+                                   object_key,
+                                   file_path,
+                                   headers=putObjectHeader)
         print(f'uploadLocalFileToOss-result: {result}')
         # 检查上传结果
         if result.status == 200:
@@ -279,12 +277,11 @@ def uploadLocalFileToOss(file_path, fileName):
         print(f'uploadLocalFileToOss-failed: {e}')
         return ("上传oss未成功")
 
+
 def upload_content_to_oss(html_content, fileName):
     """
         Uploads a local file to Alibaba Cloud OSS.
 
-        :param file_path: Path of the file on the local system
-        :param oss_key: The key under which the file will be stored in OSS
         :return: True if upload was successful, False otherwise
         """
     # 这里需要添加实际的OSS上传逻辑
@@ -300,9 +297,9 @@ def upload_content_to_oss(html_content, fileName):
         # # 上传文件
         # result = bucket.upload_file(object_key, file_path)
         result = obsClient.putContent(huaweiyun_bucket_name,
-                                   object_key,
-                                   html_content,
-                                   headers=putObjectHeader)
+                                      object_key,
+                                      html_content,
+                                      headers=putObjectHeader)
         print(f'upload_content_to_oss-result: {result}')
         # 检查上传结果
         if result.status == 200:
@@ -312,4 +309,3 @@ def upload_content_to_oss(html_content, fileName):
     except Exception as e:
         print(f'upload_content_to_oss-failed: {e}')
         return ("上传oss未成功")
-

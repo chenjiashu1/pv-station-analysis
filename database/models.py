@@ -28,7 +28,7 @@ class open_capacity(Base):
     cityName = Column(String(255), comment='城市名称')
     countyName = Column(String(255), comment='县/区名称')
     year = Column(String(255), comment='年')
-    month = Column(String(255), comment='年')
+    month = Column(String(255), comment='月')
     substationName = Column(String(255), comment='变电站名称')
     pv_type = Column(String(255), comment='电站类型', default="分布式")
     v = Column(String(255), comment='电压等级（kV）')

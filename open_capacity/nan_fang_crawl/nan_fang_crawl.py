@@ -159,6 +159,7 @@ def ai_parse_document_and_db(sourceInfo):
         parsed_data = json.loads(parsed_data_string)
     except json.JSONDecodeError as e:
         print(f"JSON 解析错误: {e}")
+        return ""
     print(f"ai_parse_document====成功解析出{len(parsed_data)}条可开放容量的数据")
 
     # 每50行数据插入一次数据库
